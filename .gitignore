@@ -1,0 +1,70 @@
+# --- Generic ignores ---
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+*.log
+
+# --- OS-specific ---
+.DS_Store
+Thumbs.db
+
+# --- Editor-specific ---
+# VS Code
+.vscode/
+# JetBrains
+.idea/
+
+# --- Analysis Tools ---
+# Ctags
+tags
+TAGS
+
+# Cscope
+cscope.*
+ncscope.*
+
+# Doxygen
+html/
+latex/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.ipython/
+.pytest_cache/
+
+# Virtual Environments & Dependencies
+.venv
+venv
+env
+ENV
+.env
+pip-wheel-metadata/
+/dist/
+/*.egg-info/
+
+# --- Linux Kernel Source Build Artifacts ---
+# These patterns are added to keep the linux/ directory clean if a build is attempted.
+# They are scoped to the 'linux' directory to avoid accidentally ignoring your own files.
+/linux/**/*.o
+/linux/**/*.a
+/linux/**/*.s
+/linux/**/*.ko
+/linux/**/*.so
+/linux/**/*.mod.c
+/linux/**/.*.cmd
+/linux/**/.*.d
+/linux/**/.*.tmp
+/linux/vmlinux
+/linux/System.map
+/linux/Module.symvers
+/linux/modules.order
+/linux/.config
+/linux/.config.old
+/linux/include/generated/
+/linux/arch/*/include/generated/
