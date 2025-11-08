@@ -1,0 +1,27 @@
+---
+related:
+- "[Page Fault Handling](../02-callflows/EXAMPLE.yml)"
+tags:
+- callflow
+- page-fault
+---
+name: "Page Fault Handling (Read)"
+description: "Simplified callflow for a user-space read page fault."
+entrypoint: "do_page_fault"
+steps:
+  - function: "do_page_fault"
+    file: "arch/i386/mm/fault.c"
+    notes: "The main entry point for handling page faults on x86. It identifies the faulting address and determines if it's a valid access."
+    calls: "handle_mm_fault"
+  - function: "handle_mm_fault"
+    file: "mm/memory.c"
+    notes: "Finds the appropriate VMA for the faulting address and checks its permissions."
+    calls: "do_wp_page"
+  - function: "do_wp_page"
+    file: "mm/memory.c"
+    notes: "Handles copy-on-write (COW) faults. If the page is shared, it allocates a new page and copies the data."
+    calls: "alloc_page"
+  - function: "alloc_page"
+    file: "include/linux/mm.h"
+    notes: "A wrapper macro that eventually calls into the buddy allocator to get a free physical page frame."
+    calls: "alloc_pages"

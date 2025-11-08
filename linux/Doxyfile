@@ -1,0 +1,81 @@
+## Project title shown in the generated documentation.
+## Surrounding quotes are optional but keep them for names with spaces.
+PROJECT_NAME = "Linux 2.4.18 MM"
+
+## Directories and/or files that Doxygen will scan for source.
+## You can specify multiple paths separated by spaces. Relative paths are
+## evaluated from the location where doxygen is run.
+INPUT = mm/ include/linux/
+
+## File name patterns to include. Doxygen will only parse files that match
+## these patterns (simple glob-style patterns). Add extensions if needed.
+FILE_PATTERNS = *.c *.h
+
+## If YES, Doxygen will recurse into subdirectories of the INPUT paths.
+## Useful when you want to document an entire tree without listing each dir.
+RECURSIVE = YES
+
+## If YES, document all entities found in the source files even when they
+## lack explicit documentation comments. This is helpful for exploring a
+## legacy codebase where not everything is annotated.
+EXTRACT_ALL = YES
+## Show TODOsnd FIXMEs in docs
+EXTRACT_TODO = YES
+
+## Enable use of Graphviz 'dot' to generate diagrams (call graphs, class
+## diagrams). Requires the 'dot' program on PATH.
+HAVE_DOT = YES
+
+## Enable generation of call graphs & caller graphs(which functions call which). This
+## requires HAVE_DOT = YES to actually produce graphs.
+CALL_GRAPH = YES
+##CALLER_GRAPH = YES
+
+## Output directory where generated documentation will be written. If the
+## directory does not exist Doxygen will create it.
+OUTPUT_DIRECTORY = docs
+
+## --- Preprocessing and C-specific parsing ---------------------------------
+## Enable C preprocessing so macros and conditional compilation are handled.
+## This helps Doxygen see the real declarations in kernel headers.
+ENABLE_PREPROCESSING = YES
+
+## Expand simple macros. Useful for kernel code that uses many macros.
+MACRO_EXPANSION = YES
+
+## If YES, only macros listed in PREDEFINED are expanded. We want general
+## expansion so leave this NO (the default). Set to YES to limit expansion.
+EXPAND_ONLY_PREDEF = NO
+
+## Common kernel macros so preprocessing behaves more like the kernel build.
+## Add more symbols here if you find other conditional blocks are skipped.
+PREDEFINED = __KERNEL__ MODULE
+
+## Tell Doxygen to optimize output for C code (not C++). This enables some
+## C-specific parsing choices that match kernel coding patterns.
+OPTIMIZE_OUTPUT_FOR_C = YES
+
+## Treat the first line of a Javadoc-style comment as the brief description.
+## The kernel uses many brief-style comments; enabling this makes parsing
+## more likely to attach comments to the right entity.
+JAVADOC_AUTOBRIEF = YES
+
+## --- Source browsing & inline sources ------------------------------------
+## Show the cross-referenced source code in the generated documentation.
+## SOURCE_BROWSER creates separate source pages; INLINE_SOURCES embeds the
+## actual source (with comments) into the documentation for each symbol.
+SOURCE_BROWSER = YES
+INLINE_SOURCES = YES
+
+## When showing the source in docs, do NOT strip code comments — we want
+## the comments to be visible inline alongside the code.
+STRIP_CODE_COMMENTS = NO
+
+## Also extract static functions/variables so local (file-scoped) symbols
+## are documented and their comments are visible.
+EXTRACT_STATIC = YES
+
+## Add common include paths so preprocessing can find kernel headers. These
+## are relative to where doxygen is run; adjust if you run doxygen differently.
+INCLUDE_PATH = include include/linux mm
+

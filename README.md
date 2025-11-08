@@ -39,15 +39,26 @@ Once the image is built, you can start an interactive container session. Your pr
 
 ```bash
 # From the project root directory
-docker run -it --rm -v "$(pwd):/workspace" kernel-tools
+docker run -it --rm -v $(pwd):/workspace --user $(id -u):$(id -g) kernel-tools
 ```
 
 - `docker run`: Starts a new container.
 - `-it`: Allocates an interactive terminal.
 - `--rm`: Automatically removes the container when you exit, keeping your system clean.
 - `-v "$(pwd):/workspace"`: Mounts your current directory (`.`) into the container at `/workspace`. This means any changes you make to files in `/workspace` inside the container will be reflected in your project folder on your host machine.
+- `--user $(id -u):$(id -g) kernel-tools`: Run as your host user inside the container.
 
 You are now inside the container, ready to start analyzing the code.
+
+### 4. Generating HTML documentation
+
+From inside the container, build the HTML documentation with:
+```bash
+cd linux/
+doxygen Doxyfile
+```
+
+This command converts the C source and in-source comments into HTML documentation (including call graphs). When it finishes, open `linux/docs/html/index.html` in a browser to view the results.
 
 ## Core Tasks
 

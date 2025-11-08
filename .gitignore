@@ -21,6 +21,9 @@ Thumbs.db
 tags
 TAGS
 
+# Cflow
+*.cflow
+
 # Cscope
 cscope.*
 ncscope.*
