@@ -63,6 +63,8 @@ static int zone_balance_max[MAX_NR_ZONES] __initdata = { 255 , 255, 255, };
  */
 
 static void FASTCALL(__free_pages_ok (struct page *page, unsigned int order));
+
+/** This is a Doxygen style docstring */
 static void __free_pages_ok (struct page *page, unsigned int order)
 {
 	unsigned long index, page_idx, mask, flags;

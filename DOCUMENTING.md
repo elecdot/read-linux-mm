@@ -42,6 +42,8 @@ This is where we keep high-level explanations of core memory management concepts
 
 ### `01-source-map`
 
+>[!tip] Each document in this directory should correspond to a single source file. If you're annotating a function, use Doxygen-style comments. For an example, see the `__free_pages_ok()` function in `linux/mm/page_alloc.c`, available in the generated HTML at `linux/docs/html/page__alloc_8c.html` (see [Getting Started](./README.md#getting-started)).
+
 Here, we create annotations and summaries of specific source files. The goal is to build a "map" that makes the dense kernel code easier to navigate. Each document in this directory should correspond to a single source file.
 
 **A helpful structure for a source map file is**:
@@ -91,6 +93,7 @@ This directory serves as a project journal or "lab notebook" for recording daily
 - **Daily Logs**: You can create a new file for each study session to jot down what you worked on, what you learned, any problems you encountered, and ideas for next steps.
 - **Code Snippets & Results**: It's a great place to paste temporary code snippets, command outputs, or interesting observations that aren't ready to be formalized into the other documentation sections.
 - **Brainstorming**: You can use these files for free-form thinking and brainstorming before structuring your thoughts into a formal concept or source map.
+- **TODO & DONE tags**: Use `TODO` and `DONE` tags to track outstanding tasks and mark completed items (for example, `rg TODO`).
 
 **File Naming Convention**:
 - To keep things organized, it's helpful to name files with a prefix, author, and topic. For example: `00-author-topic-keyword.md`.
