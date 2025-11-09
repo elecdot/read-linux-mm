@@ -71,7 +71,7 @@ Inside the container, you can perform the following tasks:
 
 ## Documentation & Collaboration
 
-Before creating notes or diagrams, please read [DOCUMENTING.md](./DOCUMENTING.md). It explains the project's documentation conventions to ensure consistency.
+Before creating notes or diagrams, please read [DOCUMENTING.md](./DOCUMENTING.md) and [COLLABORATION.md](./COLLABORATION.md). These documents explain the project's documentation conventions and a beginner-friendly workflow, respectively, to ensure consistency.
 
 ## Resources
 
