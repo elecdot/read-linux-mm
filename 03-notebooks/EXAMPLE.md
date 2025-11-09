@@ -7,24 +7,24 @@ tags:
 - setup
 ---
 
-# 2025-11-08: Initial Setup & Documentation
+# 2025-11-08: 初始搭建与文档整理
 
-## Progress Today
+## Progress Today / 今日进展
 
-- Cloned the `read-linux-mm` repository and explored the directory structure.
-- Read through the `CONTEXT.md` and `DOCUMENTING.md` files to understand the project goals and conventions.
-- Created the initial `EXAMPLE.md` files for each documentation directory to serve as templates.
+- DONE: 克隆 `read-linux-mm` 仓库并浏览整体目录结构。
+- DONE: 阅读 `CONTEXT.md` 与 `DOCUMENTING.md` 了解项目目标与约定。
+- DONE: 为各文档目录创建初始 `EXAMPLE.md` 模板文件。
 
-## Findings
+## Findings / 发现
 
-- The YAML format for callflows in `02-callflows` seems powerful. It should be possible to write a simple Python script to parse these files and generate a visual graph with Graphviz. This could be a good mini-project for later.
-- The "Reading Recipe" idea in `01-source-map` is a great way to structure notes on specific functions. It forces a clear, concise summary.
+- `02-callflows` 中的 YAML 结构可扩展性很好，后续可以写个 Python 脚本解析并用 Graphviz 生成流程图——一个不错的小项目。
+- `01-source-map` 的 “Reading Recipe” 形式有助于对函数做结构化笔记，促使保持简洁。
 
-## Blockers
+## Blockers / 阻碍
 
-- None so far. The setup was straightforward.
+- 暂无。初始化过程顺利。
 
-## Next Steps
+## Next Steps / 下一步
 
-- Start by creating a concept document for `00-concepts/zones.md`.
-- Begin exploring the `mm/page_alloc.c` file and create a corresponding source map in `01-source-map`.
+- TODO: 编写 `00-concepts/zones.md` 概念文档。
+- TODO: 开始阅读 `mm/page_alloc.c` 并在 `01-source-map` 中建立对应 source map。
