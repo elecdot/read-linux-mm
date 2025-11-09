@@ -177,6 +177,7 @@ tags:
 
 ## Progress Today
 
+- DONE: 
 
 
 ## Findings
@@ -188,6 +189,8 @@ tags:
 
 
 ## Next Steps
+
+- TODO: 
 
 
 EOF
