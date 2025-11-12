@@ -39,8 +39,12 @@ Once the image is built, you can start an interactive container session. Your pr
 
 ```bash
 # From the project root directory
-docker run -it --rm -v $(pwd):/workspace --user $(id -u):$(id -g) kernel-tools
+# bash:
+docker run -it --rm -v "$(pwd):/workspace" --user $(id -u):$(id -g) kernel-tools
+# PowerShell:
+docker run -it --rm -v "$(pwd):/workspace" --user kernel-tools
 ```
+> Alternatively, you can run `bash ./bin/docker-init.sh` or `./bin/docker-init.ps1`.
 
 - `docker run`: Starts a new container.
 - `-it`: Allocates an interactive terminal.

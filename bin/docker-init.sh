@@ -1,0 +1,1 @@
+docker run -it --rm -v "$(pwd):/workspace" --user $(id -u):$(id -g) kernel-tools
