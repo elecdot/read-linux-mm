@@ -115,7 +115,7 @@ As you work day to day, use the pull → branch → edit → add → commit → 
 ```bash
 # 1) Sync local main
 git checkout main
-git pull --ff-only origin main
+git pull --rebase origin main
 
 # 2) Create a topic branch
 git switch -c feat/parse-mm-docs-12
