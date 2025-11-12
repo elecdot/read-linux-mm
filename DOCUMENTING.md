@@ -6,6 +6,9 @@ This guide explains the documentation conventions we'll be using for our study o
 
 - **Format**: For consistency, all documentation is written in Markdown.
 - **File Naming**: Filenames should be lowercase, using hyphens (`-`) for separators (e.g., `vm-overview.md`). This avoids issues with case-sensitivity across different operating systems.
+-- **Tag system**: Use a simple tag system to track tasks (e.g., `rg '<tag>'`). Include a short personal identifier to avoid collisions with other contributors, for example `__TODO__(gzh)`.
+  - When creating a tag for a task, include a one-line summary or outcome after the identifier. Example: `__TODO__(gzh): introduce tag system`.
+  - **__TODO__ & __DONE__**: Prefer the underlined forms (`__TODO__`, `__DONE__`) so they are easier to match and less likely to collide with TODO/DONE markers in the Linux source tree.
 - **Metadata Header**: It's helpful for each document to start with a YAML front matter block. This lets us track related topics, tags, and source files.
 
   ```markdown
@@ -93,7 +96,7 @@ This directory serves as a project journal or "lab notebook" for recording daily
 - **Daily Logs**: You can create a new file for each study session to jot down what you worked on, what you learned, any problems you encountered, and ideas for next steps.
 - **Code Snippets & Results**: It's a great place to paste temporary code snippets, command outputs, or interesting observations that aren't ready to be formalized into the other documentation sections.
 - **Brainstorming**: You can use these files for free-form thinking and brainstorming before structuring your thoughts into a formal concept or source map.
-- **TODO & DONE tags**: Use `TODO` and `DONE` tags to track outstanding tasks and mark completed items (for example, `rg TODO`).
+- **TODO & DONE tags**: Use `__TODO__` and `__DONE__` tags to track outstanding tasks and mark completed items (for example, `rg __TODO__`).
 
 **File Naming Convention**:
 - To keep things organized, it's helpful to name files with a prefix, author, and topic. For example: `00-author-topic-keyword.md`.
