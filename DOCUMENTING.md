@@ -6,7 +6,7 @@ This guide explains the documentation conventions we'll be using for our study o
 
 - **Format**: For consistency, all documentation is written in Markdown.
 - **File Naming**: Filenames should be lowercase, using hyphens (`-`) for separators (e.g., `vm-overview.md`). This avoids issues with case-sensitivity across different operating systems.
--- **Tag system**: Use a simple tag system to track tasks (e.g., `rg '<tag>'`). Include a short personal identifier to avoid collisions with other contributors, for example `__TODO__(gzh)`.
+- **Tag system**: Use a simple tag system to track tasks (e.g., `rg '<tag>'`). Include a short personal identifier to avoid collisions with other contributors, for example `__TODO__(gzh)`.
   - When creating a tag for a task, include a one-line summary or outcome after the identifier. Example: `__TODO__(gzh): introduce tag system`.
   - **__TODO__ & __DONE__**: Prefer the underlined forms (`__TODO__`, `__DONE__`) so they are easier to match and less likely to collide with TODO/DONE markers in the Linux source tree.
 - **Metadata Header**: It's helpful for each document to start with a YAML front matter block. This lets us track related topics, tags, and source files.
