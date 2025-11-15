@@ -4,18 +4,72 @@ This guide explains the common workflow we'll use while studying the Linux v2.4.
 
 ## Daily workflow
 
-Your daily workflow should be:
-- Prepare:
-    - Regenerate the HTML docs with `doxygen Doxyfile`.
-    - Check for outstanding TODOs with `rg TODO`.
-        - Troubleshooting: This can be noisy because many TODOs appear in the kernel source.
-- Decide what you're going to do and mark it with a TODO tag.
-    - If you're planning to read a function or source file, add a Doxygen-style comment (`/** ... */`) above the function implementation.
-    - Otherwise, create a notebook entry using `bash /workspace/bin/doc-init.sh`.
-- Do your work while following the conventions in [DOCUMENTING.md](./DOCUMENTING.md).
-- Mark the item as DONE.
+Example command workflow (PowerShell)
 
-## Git Workflow
+1. Prepare
+     - Open the project folder in PowerShell (e.g., in Explorer, right‑click the `read-linux-mm` folder and choose "Open in Terminal").
+     - Enter the container environment:
+         ```powershell
+         .\bin\docker-init.ps1
+         # root@randomstring:/workspace #
+         ```
+     - Ensure your `main` branch is up to date:
+         ```bash
+         # /workspace
+         git checkout main
+         git pull --rebase origin main
+         ```
+     - Create a topic [branch](#branch) for your work:
+         ```bash
+         # example: feat/function-free-pages-ok or docs/gzh-11-15
+         git switch -c feat/<my-branch>
+         ```
+     - Regenerate the HTML docs (if needed):
+         ```bash
+         # /workspace
+         cd linux
+         doxygen Doxyfile
+         ```
+     - (Optional) Check for outstanding TODOs:
+         ```bash
+         rg __TODO__
+         ```
+
+2. Start working
+     - Decide what you'll work on and mark it with a TODO tag.
+     - Follow the conventions in [DOCUMENTING.md](./DOCUMENTING.md):
+         - Read the source and add or capture comments.
+         - Create notebooks for concepts, callflows, or personal notes (use `bash /workspace/bin/doc-init.sh`).
+     - Mark what you've completed with a DONE tag.
+
+3. Finish your work
+     - Stage and [commit](#conventional-commits-samples) your changes (use a conventional commit message):
+         ```bash
+         git add .
+         # example commit message:
+         # feat(docs): add comment for __free_pages_ok; docs: write 00-gzh-day1-conclusion.md
+         git commit -m "<commit message>"
+         ```
+     - Push and open a PR:
+         ```bash
+         git push -u origin HEAD
+         ```
+     - Open the repository on GitHub, create a PR, and notify the maintainer requesting a squash merge.
+     - After the PR is merged (you get a positive response from the maintainer), clean up your local branch:
+         ```bash
+         git checkout main
+         git pull --rebase origin main
+         git branch -d feat/<my-branch>
+         git fetch -p
+         ```
+
+4. Shut down
+     - Exit the container:
+         ```bash
+         exit
+         ```
+
+## A brief introduction for Git Workflow
 
 ### Day-1 Setup
 
