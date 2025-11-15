@@ -7,6 +7,28 @@
  *  Reshaped it to be a zoned allocator, Ingo Molnar, Red Hat, 1999
  *  Discontiguous memory support, Kanoj Sarcar, SGI, Nov 1999
  *  Zone balancing, Kanoj Sarcar, SGI, Jan 2000
+# */
+
+/**
+ * @file linux/mm/page_alloc.c
+ * @brief Zoned buddy page allocator: allocation, freeing, and zone accounting.
+ *
+ * @code This is just a example, you may want to change it @endcode
+ * This translation of the kernel's page allocator implements the zoned
+ * buddy allocator used to manage physical pages. It provides routines to
+ * allocate and free page blocks of various orders, coalesce freed blocks
+ * with their buddies, maintain per-zone free lists and accounting, and
+ * handle slow-path balancing (including interaction with kswapd).
+ *
+ * The file contains the fast-path buddy operations (rmqueue/expand), the
+ * freeing path (__free_pages_ok  and helpers), and higher-level allocation
+ * helpers such as __alloc_pages, __get_free_pages and get_zeroed_page.
+ *
+ * Notes:
+ * - Many functions assume kernel invariants (spinlocks, current->flags,
+ *   page reference counts). They can call BUG() on severe inconsistencies.
+ * - This source is intended for reading and learning; it mirrors the
+ *   behavior of historical Linux mm code and uses kernel-specific helpers.
  */
 
 #include <linux/config.h>
@@ -64,7 +86,32 @@ static int zone_balance_max[MAX_NR_ZONES] __initdata = { 255 , 255, 255, };
 
 static void FASTCALL(__free_pages_ok (struct page *page, unsigned int order));
 
-/** This is a Doxygen style docstring */
+/**
+ * @brief Free a block of pages and return it to the buddy allocator.
+ *
+ * @code This is just a example, you may want to change it @endcode
+ * Frees the block of 2^order pages starting at @p page. The function
+ * attempts to coalesce the block with its free buddy blocks up the
+ * buddy tree, placing the resulting block onto the appropriate free
+ * list. It updates zone accounting and performs several internal
+ * consistency checks.
+ *
+ * @param page Pointer to the first struct page of the block to free.
+ * @param order Order of the block to free (0 = single page, 1 = two pages,
+ *              etc.).
+ * @return void
+ *
+ * @note The caller must have dropped the page's reference count to zero
+ *       (so the page is no longer in use). Typically callers invoke
+ *       @c put_page_testzero (or similar) before calling this routine.
+ *       This function may place pages on the per-task local freelist
+ *       (if the caller allows local freelists) or the global zone free
+ *       lists while holding the zone lock. It performs internal checks
+ *       and will BUG() on serious inconsistencies (e.g. pages still
+ *       mapped, locked, active, or part of the swap cache).
+ * 
+ * This is just a @ref example for using notes reference.
+ */
 static void __free_pages_ok (struct page *page, unsigned int order)
 {
 	unsigned long index, page_idx, mask, flags;

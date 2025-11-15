@@ -2,6 +2,44 @@
 
 This guide explains the documentation conventions we'll be using for our study of the Linux v2.4.18 memory management subsystem. Following these standards helps us maintain clarity and consistency, which makes the project easier for everyone to follow, especially for those new to the codebase.
 
+## Documenting with Doxygen
+
+### Standard Doxygen comment styles
+
+Block style (most common)
+```c
+/**
+ * @brief Short summary.
+ *
+ * Longer explanation if needed.
+ */
+```
+
+Trailing style (alternative)
+```c
+//! A short description after something
+```
+
+### Common Doxygen tags
+
+> These tags map directly to sections in the generated HTML documentation.
+
+| Tag                | Meaning                         | Example                                   |
+| ------------------ | ------------------------------- | ----------------------------------------- |
+| `@brief`           | Short, one-line summary         | `@brief Initialize the memory allocator.` |
+| `@param`           | Document a parameter            | `@param size Number of bytes`             |
+| `@return`          | Describe return value           | `@return Pointer to block`                |
+| `@note`            | Call out important notes        | `@note Must be called after init.`        |
+| `@warning`         | Warning section                 | —                                         |
+| `@see`             | Link to related functions/types | —                                         |
+| `@code … @endcode` | Code block                      | —                                         |
+
+### Example
+
+This example shows how in-source Doxygen comments are rendered in the generated HTML. Feel free to adapt or expand it.
+
+For a concrete example, open `linux/mm/page_alloc.c` and inspect the `__free_pages_ok()` function (one of the first functions in that file). Notice how the `page` parameter is documented in the source and how those comments appear in the HTML output (after running Doxygen, browse to `page_alloc.c`).
+
 ## Global Conventions
 
 - **Format**: For consistency, all documentation is written in Markdown.
@@ -44,6 +82,8 @@ This is where we keep high-level explanations of core memory management concepts
 3.  **`## Deep Dive` (Optional)**: For more complex topics, you might want to add a more detailed explanation. After you've drafted the other parts, you could even use an AI assistant to help you write this section.
 
 ### `01-source-map`
+
+>[!warning] You DO NOT use this since documenting a kernel subsystem file in Doxygen style is discovered.
 
 >[!tip] Each document in this directory should correspond to a single source file. If you're annotating a function, use Doxygen-style comments. For an example, see the `__free_pages_ok()` function in `linux/mm/page_alloc.c`, available in the generated HTML at `linux/docs/html/page__alloc_8c.html` (see [Getting Started](./README.md#getting-started)).
 

@@ -1,3 +1,9 @@
+/*! \page example A Regular Example
+
+This page introduces:
+Page frame（物理页框）是物理内存中的固定大小块。内核把整个物理 RAM 看作由这些页框组成的集合，它们作为容器存放页面数据（来自进程、内核或文件缓存）。在 Linux 2.4 中，一个页框通常为 4KB。
+*/
+
 ---
 related:
 - "[Zone Allocator](../00-concepts/EXAMPLE.md)"

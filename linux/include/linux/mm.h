@@ -148,8 +148,14 @@ struct vm_operations_struct {
  *
  * TODO: make this structure smaller, it could be as small as 32 bytes.
  */
+/**
+ * @brief Structure representing a physical page in memory.
+ * 
+ * @code This is just a example, you may want to change it @endcode
+ * This structure represents a physical page in memory.
+ */
 typedef struct page {
-	struct list_head list;		/* ->mapping has some page lists. */
+	struct list_head list;		/* ->mapping has some page lists. */ //!< List head for linking pages in various lists.
 	struct address_space *mapping;	/* The inode (or ...) we belong to. */
 	unsigned long index;		/* Our offset within mapping. */
 	struct page *next_hash;		/* Next page sharing our hash bucket in

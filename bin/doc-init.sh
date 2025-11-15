@@ -32,7 +32,7 @@ error() {
 # 1. Prompt for document type
 echo "Select the type of document to create:"
 echo "  [0] 00-concepts: For a high-level concept."
-echo "  [1] 01-source-map: For annotating a source file."
+echo "  (outdated) [1] 01-source-map: For annotating a source file."
 echo "  [2] 02-callflows: For a YAML-based callflow."
 echo "  [3] 03-notebooks: For a daily progress log."
 read -p "Enter a number (0-3): " doc_type

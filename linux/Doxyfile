@@ -5,11 +5,12 @@ PROJECT_NAME = "Linux 2.4.18 MM"
 ## Directories and/or files that Doxygen will scan for source.
 ## You can specify multiple paths separated by spaces. Relative paths are
 ## evaluated from the location where doxygen is run.
-INPUT = mm/ include/linux/
+INPUT = mm/ include/linux/ ../00-concepts/ ../01-source-map ../02-callflows ../03-notebooks
 
 ## File name patterns to include. Doxygen will only parse files that match
 ## these patterns (simple glob-style patterns). Add extensions if needed.
-FILE_PATTERNS = *.c *.h
+FILE_PATTERNS = *.c *.h *.md
+MARKDOWN_SUPPORT = YES
 
 ## If YES, Doxygen will recurse into subdirectories of the INPUT paths.
 ## Useful when you want to document an entire tree without listing each dir.
