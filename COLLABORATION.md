@@ -13,6 +13,18 @@ Example command workflow (PowerShell)
          .\bin\docker-init.ps1
          # root@randomstring:/workspace #
          ```
+     - Regenerate the HTML docs (if needed):
+         ```bash
+         # /workspace
+         cd linux
+         doxygen Doxyfile
+         ```
+     - Exit the container:
+         ```bash
+         exit
+         # Now you should inside your PowerShell:
+         # PS */read-linux-mm/>
+         ```
      - Ensure your `main` branch is up to date:
          ```bash
          # /workspace
@@ -23,12 +35,6 @@ Example command workflow (PowerShell)
          ```bash
          # example: feat/function-free-pages-ok or docs/gzh-11-15
          git switch -c feat/<my-branch>
-         ```
-     - Regenerate the HTML docs (if needed):
-         ```bash
-         # /workspace
-         cd linux
-         doxygen Doxyfile
          ```
      - (Optional) Check for outstanding TODOs:
          ```bash
@@ -61,12 +67,6 @@ Example command workflow (PowerShell)
          git pull --rebase origin main
          git branch -d feat/<my-branch>
          git fetch -p
-         ```
-
-4. Shut down
-     - Exit the container:
-         ```bash
-         exit
          ```
 
 ## A brief introduction for Git Workflow
