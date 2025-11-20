@@ -8,6 +8,17 @@ Example command workflow (PowerShell)
 
 1. Prepare
      - Open the project folder in PowerShell (e.g., in Explorer, right‑click the `read-linux-mm` folder and choose "Open in Terminal").
+     - Ensure your `main` branch is up to date:
+         ```bash
+         # /workspace
+         git checkout main
+         git pull --rebase origin main
+         ```
+     - Create a topic [branch](#branch) for your work:
+         ```bash
+         # example: feat/function-free-pages-ok or docs/gzh-11-15
+         git switch -c feat/<my-branch>
+         ```
      - Enter the container environment:
          ```powershell
          .\bin\docker-init.ps1
@@ -24,17 +35,6 @@ Example command workflow (PowerShell)
          exit
          # Now you should inside your PowerShell:
          # PS */read-linux-mm/>
-         ```
-     - Ensure your `main` branch is up to date:
-         ```bash
-         # /workspace
-         git checkout main
-         git pull --rebase origin main
-         ```
-     - Create a topic [branch](#branch) for your work:
-         ```bash
-         # example: feat/function-free-pages-ok or docs/gzh-11-15
-         git switch -c feat/<my-branch>
          ```
      - (Optional) Check for outstanding TODOs:
          ```bash
