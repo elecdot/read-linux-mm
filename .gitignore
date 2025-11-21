@@ -71,3 +71,15 @@ pip-wheel-metadata/
 /linux/.config.old
 /linux/include/generated/
 /linux/arch/*/include/generated/
+
+# Visual Studio
+.vs/
+*.sln
+*.csproj
+*.vbproj
+*.fsproj
+*.sqlproj
+*.user
+*.suo
+[Bb]in/
+[Oo]bj/
