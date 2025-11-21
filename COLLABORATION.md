@@ -7,7 +7,7 @@ This guide explains the common workflow we'll use while studying the Linux v2.4.
 Example command workflow (PowerShell)
 
 1. Prepare
-     - Open the project folder in PowerShell (e.g., in Explorer, right‑click the `read-linux-mm` folder and choose "Open in Terminal").
+     - Open the project folder in Git Bash (e.g., in Explorer, right‑click the `read-linux-mm` folder, "More Option" and choose "Open in Git Bash").
      - Ensure your `main` branch is up to date:
          ```bash
          # /workspace
