@@ -33,8 +33,9 @@ Example command workflow (PowerShell)
      - Exit the container:
          ```bash
          exit
-         # Now you should inside your PowerShell:
-         # PS */read-linux-mm/>
+         # Now you should inside your Git Bash:
+         # you@host MINGW64 path/to/read-linux-mm (main)
+         # $ _
          ```
      - (Optional) Check for outstanding TODOs:
          ```bash
@@ -45,7 +46,7 @@ Example command workflow (PowerShell)
      - Decide what you'll work on and mark it with a TODO tag.
      - Follow the conventions in [DOCUMENTING.md](./DOCUMENTING.md):
          - Read the source and add or capture comments.
-         - Create notebooks for concepts, callflows, or personal notes (use `bash /workspace/bin/doc-init.sh`).
+         - Create notebooks for concepts, callflows, or personal notes (use `bash ./bin/doc-init.sh`).
      - Mark what you've completed with a DONE tag.
 
 3. Finish your work
