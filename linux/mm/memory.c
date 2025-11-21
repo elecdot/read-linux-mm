@@ -1422,14 +1422,21 @@ out:
  * We've already handled the fast-path in-line, and we own the
  * page table lock.
  */
+ /**__DONE__(nyz):对 pte_alloc 函数进行说明
+  * @brief 在给定的目录项（PMD）中分配一个新的页表项，并将其与指定的虚拟地址关联起来
+  * 
+  *	@param struct mm_struct *mm ：内存管理结构体
+  * @param pmd_t *pmd ：指向页目录项的指针
+  * @param unsigned long address ：虚拟地址，用于确定页表项的位置
+  */
 pte_t *pte_alloc(struct mm_struct *mm, pmd_t *pmd, unsigned long address)
 {
-	if (pmd_none(*pmd)) {
+	if (pmd_none(*pmd)) {						// 检查页目录项是否为空
 		pte_t *new;
 
 		/* "fast" allocation can happen without dropping the lock.. */
-		new = pte_alloc_one_fast(mm, address);
-		if (!new) {
+		new = pte_alloc_one_fast(mm, address);	// 尝试快速分配一个新的页表，而不释放锁
+		if (!new) {								// 如果快速分配失败（即没有足够的内存），则释放锁并进行慢速分配
 			spin_unlock(&mm->page_table_lock);
 			new = pte_alloc_one(mm, address);
 			spin_lock(&mm->page_table_lock);
@@ -1440,7 +1447,8 @@ pte_t *pte_alloc(struct mm_struct *mm, pmd_t *pmd, unsigned long address)
 			 * Because we dropped the lock, we should re-check the
 			 * entry, as somebody else could have populated it..
 			 */
-			if (!pmd_none(*pmd)) {
+			if (!pmd_none(*pmd)) {				// 检查页目录项是否仍未空（不为空说明释放锁期间，其他线程
+												// 已经分配了页表，因此需要释放新分配的页表）
 				pte_free(new);
 				goto out;
 			}
