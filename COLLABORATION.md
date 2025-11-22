@@ -20,8 +20,8 @@ Example command workflow (PowerShell)
          git switch -c feat/<my-branch>
          ```
      - Enter the container environment:
-         ```powershell
-         .\bin\docker-init.ps1
+         ```bash
+         ./bin/docker-init.gbsh
          # root@randomstring:/workspace #
          ```
      - Regenerate the HTML docs (if needed):
