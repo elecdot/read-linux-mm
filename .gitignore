@@ -81,5 +81,3 @@ pip-wheel-metadata/
 *.sqlproj
 *.user
 *.suo
-[Bb]in/
-[Oo]bj/
