@@ -5,8 +5,8 @@
 
 #include <linux/prefetch.h>
 
-/*
- * Simple doubly linked list implementation.
+/**
+ * @brief Simple doubly linked list implementation.
  *
  * Some of the internal functions ("__xxx") are useful when
  * manipulating whole lists rather than single entries, as

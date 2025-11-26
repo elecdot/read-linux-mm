@@ -680,6 +680,12 @@ static inline void build_zonelists(pg_data_t *pgdat)
  *   - mark all memory queues empty
  *   - clear the memory bitmaps
  */
+/**
+ * __TODO__(gzh): MM initialization function for setting up memory zones and page structures.
+ * 
+ * @see 00-concepts/swappable-page.md: 
+ * 系统在初始化时将部分页框标记为不可对换的,防止内核数据被换出.
+ */
 void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 	unsigned long *zones_size, unsigned long zone_start_paddr, 
 	unsigned long *zholes_size, struct page *lmem_map)
