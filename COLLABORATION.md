@@ -6,6 +6,8 @@ This guide explains the common workflow we'll use while studying the Linux v2.4.
 
 Example command workflow (PowerShell)
 
+>We introduce parallel branches to work asynchronously, then use a GitHub workflow to merge them into a single main branch that contains all of our work:
+
 1. Prepare
      - Open the project folder in Git Bash (e.g., in Explorer, right‑click the `read-linux-mm` folder, "More Option" and choose "Open in Git Bash").
      - Ensure your `main` branch is up to date:
@@ -14,15 +16,14 @@ Example command workflow (PowerShell)
          git checkout main
          git pull --rebase origin main
          ```
-     - Create a topic [branch](#branch) for your work:
-         ```bash
-         # example: feat/function-free-pages-ok or docs/gzh-11-15
-         git switch -c feat/<my-branch>
-         ```
      - Enter the container environment:
          ```bash
          ./bin/docker-init.gbsh
          # root@randomstring:/workspace #
+         ```
+     - (Optional) Check for outstanding TODOs:
+         ```bash
+         rg __TODO__
          ```
      - Regenerate the HTML docs (if needed):
          ```bash
@@ -37,9 +38,12 @@ Example command workflow (PowerShell)
          # you@host MINGW64 path/to/read-linux-mm (main)
          # $ _
          ```
-     - (Optional) Check for outstanding TODOs:
+     - Create a topic [branch](#branch) for your work:
          ```bash
-         rg __TODO__
+         # example: feat/function-free-pages-ok or docs/gzh-11-15
+         # You may need create your branch when you Day-1 setting:
+         # git switch -c <your-name>/main
+         git checkout <your-name>/main
          ```
 
 2. Start working
@@ -54,21 +58,16 @@ Example command workflow (PowerShell)
          ```bash
          git add .
          # example commit message:
-         # feat(docs): add comment for __free_pages_ok; docs: write 00-gzh-day1-conclusion.md
+         # feat(docs): add comment for __free_pages_ok
+         # or
+         # docs: write 00-gzh-day1-conclusion.md
          git commit -m "<commit message>"
          ```
      - Push and open a PR:
          ```bash
          git push -u origin HEAD
          ```
-     - Open the repository on GitHub, create a PR, and notify the maintainer requesting a squash merge.
-     - After the PR is merged (you get a positive response from the maintainer), clean up your local branch:
-         ```bash
-         git checkout main
-         git pull --rebase origin main
-         git branch -d feat/<my-branch>
-         git fetch -p
-         ```
+     - notify the maintainer requesting a squash merge.
 
 ## A brief introduction for Git Workflow
 
