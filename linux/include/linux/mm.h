@@ -148,28 +148,57 @@ struct vm_operations_struct {
  *
  * TODO: make this structure smaller, it could be as small as 32 bytes.
  */
-/**
- * @brief Structure representing a physical page in memory.
+/** __DONE__(gzh): 物理内存页框结构体 mem_map_t 的定义
+ * @brief Physical memory page frame descriptor.
  * 
- * @code This is just a example, you may want to change it @endcode
- * This structure represents a physical page in memory.
+ * Represents a single physical page in the kernel memory management subsystem.
+ * Each page is managed through this structure, which tracks the page's state,
+ * ownership, and usage.(See @ref page_flags) The structure is optimized for 
+ * page cache lookup and linear searches (e.g., clock algorithm scans).
+ * 
+ * @note Try to keep the most commonly accessed fields in single cache lines (16 bytes).
  */
 typedef struct page {
-	struct list_head list;		/* ->mapping has some page lists. */ //!< List head for linking pages in various lists.
+	/** 
+	 * @brief This points to the list of pages in the same `mapping` (inode):
+	 * @code
+	 * page ──→ [mapping] ──→ address_space (in inode) ─────┐
+	 *   └──→ [list] ──→ page list (clean/dirty/locked) ←───┘
+	 * @endcode
+	 * list_head contains the doubly linked list pointers to link this page
+	 * into the inode's page lists (clean_pages, dirty_pages, locked_pages).
+	 * @note 参考书里的`prev`和`next`字段应该是在这里被封装进 list_head 结构体里的.
+	 */
+	struct list_head list;		/* ->mapping has some page lists. */
+	/** 从page链接到它所属的address_space(通常在指向定义在 @ref inode 里对应的address_space).
+	 * 表示一个文件在内存中所有的页框集合空间.
+	 */
 	struct address_space *mapping;	/* The inode (or ...) we belong to. */
+	//! 在mapping中的偏移(单位: @code PAGE_CACHE_SIZE @endcode).
 	unsigned long index;		/* Our offset within mapping. */
+	//! @ref hash_buckets 中的下一个页框.
 	struct page *next_hash;		/* Next page sharing our hash bucket in
 					   the pagecache hash table. */
+	//! 该页框被某些进程或内核引用的计数. (0--空闲)
 	atomic_t count;			/* Usage count, see below. */
+	//! @ref page_flags 中定义的各种状态标志位.
 	unsigned long flags;		/* atomic flags, some possibly
 					   updated asynchronously */
+	//! LRU 算法链表,表示该页框在活跃/非活跃链表中的位置. 由 pagemap_lru_lock 维护.
 	struct list_head lru;		/* Pageout list, eg. active_list;
 					   protected by pagemap_lru_lock !! */
+	//! Wait queue for tasks waiting on page I/O or lock operations.
 	wait_queue_head_t wait;		/* Page locked?  Stand in line... */
+	//! @ref hash_buckets 中该页框的前一个页框指针的地址(用于O(1)删除).
 	struct page **pprev_hash;	/* Complement to *next_hash. */
+	//! (如果该页为缓冲区)指向该页框对应的缓冲区头结构体链表.
 	struct buffer_head * buffers;	/* Buffer maps us to a disk block. */
+	//! 内存页框的内核虚拟地址(如果该页为高端内存则为NULL).
 	void *virtual;			/* Kernel virtual address (NULL if
 					   not kmapped, ie. highmem) */
+	/**	 指向该页框所属的内存区域(zone).
+	 * @note 在Linux2.4引入的字段, 用于实现区(zone)为单位的Buddy系统内存管理.
+	 */
 	struct zone_struct *zone;	/* Memory zone we are in. */
 } mem_map_t;
 

@@ -81,6 +81,7 @@ Placement Rules:
 - Source annotation (if permitted): Doxygen in kernel file OR conceptual mapping outside (avoid altering logic).
 
 Formats:
+- Note in Chinese.
 - Markdown only for conceptual/notebook files.
 - YAML schema for callflows: keys = `name`, `description`, `entrypoint`, `steps` (each step: `function`, `file`, `notes`, optional `calls`).
 - Doxygen tags: `@brief`, `@param`, `@return`, `@note`, `@see`, `@warning`.
@@ -93,6 +94,7 @@ Agent Rules:
 
 Documentation Checklist for Agents:
 - Confirm target directory matches artifact type.
+- Check EXAMPLE file as primitive reference.
 - Use lowercase-hyphen filename.
 - Add YAML front matter if concept or source-map style.
 - Include `## In a Word` (concept) or `## File Overview` (source-map).
