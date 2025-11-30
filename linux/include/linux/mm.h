@@ -168,6 +168,8 @@ typedef struct page {
 	 * list_head contains the doubly linked list pointers to link this page
 	 * into the inode's page lists (clean_pages, dirty_pages, locked_pages).
 	 * @note 参考书里的`prev`和`next`字段应该是在这里被封装进 list_head 结构体里的.
+	 * @note If the page is free (page->count == 0), this list is used for
+	 * the free list management.
 	 */
 	struct list_head list;		/* ->mapping has some page lists. */
 	/** 从page链接到它所属的address_space(通常在指向定义在 @ref inode 里对应的address_space).
@@ -381,6 +383,7 @@ extern void FASTCALL(set_page_dirty(struct page *));
 #define NOPAGE_OOM	((struct page *) (-1))
 
 /* The array of struct pages */
+/** __EXTERN__: 所有物理内存页框的page结构都保存在数组mem_map[]中 @see `free_area_init()` */
 extern mem_map_t * mem_map;
 
 /*
