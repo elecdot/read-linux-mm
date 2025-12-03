@@ -139,7 +139,7 @@ static __inline__ int get_order(unsigned long size)
 #define MAXMEM			((unsigned long)(-PAGE_OFFSET-VMALLOC_RESERVE))
 #define __pa(x)			((unsigned long)(x)-PAGE_OFFSET)
 #define __va(x)			((void *)((unsigned long)(x)+PAGE_OFFSET))
-#define virt_to_page(kaddr)	(mem_map + (__pa(kaddr) >> PAGE_SHIFT))
+#define virt_to_page(kaddr)	(mem_map + (__pa(kaddr) >> PAGE_SHIFT)) //! yields the address of the page descriptor associated with the linear address addr.
 #define VALID_PAGE(page)	((page - mem_map) < max_mapnr)
 
 #endif /* __KERNEL__ */

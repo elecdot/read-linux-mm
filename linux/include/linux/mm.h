@@ -156,7 +156,7 @@ struct vm_operations_struct {
  * ownership, and usage.(See @ref page_flags) The structure is optimized for 
  * page cache lookup and linear searches (e.g., clock algorithm scans).
  * 
- * @note Try to keep the most commonly accessed fields in single cache lines (16 bytes).
+ * @note Try to keep the most commonly accessed fields in single cache lines (32 bytes).
  */
 typedef struct page {
 	/** 
@@ -216,7 +216,14 @@ typedef struct page {
  * Also, many kernel routines increase the page count before a critical
  * routine so they can be sure the page doesn't go away from under them.
  */
-#define get_page(p)		atomic_inc(&(p)->count)
+/**
+ * It seems the `get_page()` increase the count,
+ * but the `page_count()` returns the current count without incrementing.
+ * Moreover, `put_page()` decrease the count.
+ * `put_page_testzero()` will decrease the count and return true if the count reaches zero.
+ * (test whether you are not the last user of the page after decrementing the count)
+ */
+#define get_page(p)		atomic_inc(&(p)->count) //! returns the current reference count of the page.
 #define put_page(p)		__free_page(p)
 #define put_page_testzero(p) 	atomic_dec_and_test(&(p)->count)
 #define page_count(p)		atomic_read(&(p)->count)
