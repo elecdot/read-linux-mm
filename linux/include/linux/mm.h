@@ -200,6 +200,10 @@ typedef struct page {
 					   not kmapped, ie. highmem) */
 	/**	 指向该页框所属的内存区域(zone).
 	 * @note 在Linux2.4引入的字段, 用于实现区(zone)为单位的Buddy系统内存管理.
+	 *
+	 * @note This will retire after NUMA is fully supported after Linux 2.5.
+	 *       The zone can be derived from the pg_data_t of the node
+	 *       that the page belongs to.
 	 */
 	struct zone_struct *zone;	/* Memory zone we are in. */
 } mem_map_t;
