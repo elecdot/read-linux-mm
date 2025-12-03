@@ -33,33 +33,46 @@ struct pglist_data;
  * ZONE_NORMAL	16-896 MB	direct mapped by the kernel
  * ZONE_HIGHMEM	 > 896 MB	only page cache and user processes
  */
+/**
+ * @brief Zone descriptor for zoned buddy allocator.
+ *
+ * `zone_t` 描述一个物理内存区域（ZONE_DMA/ZONE_NORMAL/ZONE_HIGHMEM）。每个 zone
+ * 维护自己的伙伴系统空闲列表、阈值（min/low/high）以及分配/回退关系。分配器按 zone
+ * 优先级尝试分配页，并根据水位（pages_min/low/high）进行平衡与回退。
+ *
+ * 字段语义：
+ * - `lock`：保护本 zone 的空闲列表与统计。
+ * - `free_pages`：当前可分配的页数（总计，含所有阶）。
+ * - `pages_min/pages_low/pages_high`：水位阈值；用于触发回收与决定是否允许分配。
+ * - `need_balance`：标记该 zone 需要进行平衡（如唤醒 kswapd）。
+ * - `free_area[MAX_ORDER]`：各阶（order 0..MAX_ORDER-1）的伙伴空闲链表与位图。
+ * - `zone_pgdat`：所属的节点描述符 `pg_data_t`。
+ * - `zone_mem_map`：本 zone 覆盖的 `struct page` 起始地址（全局 `mem_map` 的一个片段）。
+ * - `zone_start_paddr/zone_start_mapnr`：本 zone 覆盖的物理起始地址与全局 PFN 起始索引。
+ * - `name`：人类可读的 zone 名称（如 "DMA", "Normal", "HighMem"）。
+ * - `size`：本 zone 总页数。
+ *
+ * @see page_alloc.c: free_area_init_core(), rmqueue(), expand(); mmzone.h: pg_data_t
+ */
 typedef struct zone_struct {
-	/*
-	 * Commonly accessed fields:
-	 */
-	spinlock_t		lock;
-	unsigned long		free_pages;
-	unsigned long		pages_min, pages_low, pages_high;
-	int			need_balance;
+	/* 常访问字段：快速路径计数与同步 */
+	spinlock_t		lock;              //!< 保护本 zone 的空闲结构与统计
+	unsigned long		free_pages;       //!< 可分配页数总计
+	unsigned long		pages_min, pages_low, pages_high; //!< 水位阈值（最小、低、高）
+	int			need_balance;       //!< 需要平衡（触发回收/唤醒 kswapd）
 
-	/*
-	 * free areas of different sizes
-	 */
-	free_area_t		free_area[MAX_ORDER];
+	/* 伙伴系统：不同阶的空闲列表与位图 */
+	free_area_t		free_area[MAX_ORDER]; //!< 每阶的 free_list 与位图 map
 
-	/*
-	 * Discontig memory support fields.
-	 */
-	struct pglist_data	*zone_pgdat;
-	struct page		*zone_mem_map;
-	unsigned long		zone_start_paddr;
-	unsigned long		zone_start_mapnr;
+	/* 不连续内存/NUMA 支持：定位到节点与本区的范围 */
+	struct pglist_data	*zone_pgdat;     //!< 所属节点描述符
+	struct page		*zone_mem_map;      //!< 本区覆盖的 `struct page` 起始地址
+	unsigned long		zone_start_paddr;  //!< 本区物理起始地址（字节）
+	unsigned long		zone_start_mapnr;  //!< 本区在全局 mem_map 中的起始 PFN 索引
 
-	/*
-	 * rarely used fields:
-	 */
-	char			*name;
-	unsigned long		size;
+	/* 低频字段：名称与大小 */
+	char			*name;             //!< 名称："DMA"/"Normal"/"HighMem"
+	unsigned long		size;             //!< 本区总页数
 } zone_t;
 
 #define ZONE_DMA		0
