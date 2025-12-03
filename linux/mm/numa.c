@@ -12,6 +12,19 @@
 int numnodes = 1;	/* Initialized for UMA platforms */
 
 static bootmem_data_t contig_bootmem_data;
+/**
+ * On non-NUMA (PC) systems (e.g. typical x86 when Linux 2.4),
+ * contig_page_data is a "virtual NUMA node"
+ * that normalizes UMA and NUMA into the same internal memory-model so
+ * the allocator and MM code can work identically everywhere.
+ * 
+ * @note contig_page_data is the single pg_data_t instance that describes
+ * all physical memory on non-NUMA Linux 2.4 machines;
+ * it holds the zones, the global struct page array (mem_map), node geometry, and reclaim state;
+ * it acts as node 0 in all allocator and reclaim code paths.
+ * 
+ * @see page_alloc.c mmzone.h
+ */
 pg_data_t contig_page_data = { bdata: &contig_bootmem_data };
 
 #ifndef CONFIG_DISCONTIGMEM

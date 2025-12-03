@@ -96,22 +96,40 @@ typedef struct zonelist_struct {
  *      into the pg_data_t to properly support NUMA.
  */
 struct bootmem_data;
+/**
+ * @brief Node descriptor for discontiguous/NUMA memory.
+ *
+ * 描述一个内存节点（NUMA 节点或不连续内存的逻辑节点）的核心数据结构。
+ * 在 CONFIG_DISCONTIGMEM/NUMA 上，每个节点都有一个 `pg_data_t`，用于：
+ * - 保存该节点的各个内存区（zone）的元数据与空闲列表（buddy）。
+ * - 维护按 GFP 掩码预先构建的回退分配列表（zonelists）。
+ * - 记录该节点的 `mem_map`（`struct page` 数组）基址与范围信息，便于 PFN/索引换算。
+ *
+ * 关键语义：
+ * - `node_zones[MAX_NR_ZONES]`：按 `ZONE_DMA/ZONE_NORMAL/ZONE_HIGHMEM` 索引的每节点 zone 集合。
+ * - `node_zonelists[GFP_ZONEMASK+1]`：每种 GFP zoning 组合的首选+回退 zone 列表（以 NULL 结尾）。
+ * - `node_mem_map`：该节点的 `struct page` 起始地址（可能与全局 `mem_map` 存在偏移关系）。
+ * - `node_start_paddr/node_start_mapnr/node_size`：节点物理起始、全局 mem_map 起始索引（PFN）、页数。
+ *
+ * @note UMA/连续内存上使用 `contig_page_data`（见 `NODE_DATA(0)`），但概念与此结构一致。
+ * @see page_alloc.c: free_area_init_core(), build_zonelists(); mm.h: mem_map
+ */
 typedef struct pglist_data {
-	zone_t node_zones[MAX_NR_ZONES];
-	zonelist_t node_zonelists[GFP_ZONEMASK+1];
-	int nr_zones;
-	struct page *node_mem_map;
-	unsigned long *valid_addr_bitmap;
-	struct bootmem_data *bdata;
-	unsigned long node_start_paddr;
-	unsigned long node_start_mapnr;
-	unsigned long node_size;
-	int node_id;
-	struct pglist_data *node_next;
+	zone_t node_zones[MAX_NR_ZONES];			//!< 本节点的各 zone 描述符数组（按 ZONE_* 索引）
+	zonelist_t node_zonelists[GFP_ZONEMASK+1];	//!< 预构建的按 GFP zoning 的回退分配列表
+	int nr_zones;					//!< 已初始化的 zone 数量（最大索引+1）
+	struct page *node_mem_map;			//!< 本节点的 `struct page` 基址（节点局部视角）
+	unsigned long *valid_addr_bitmap;		//!< 稀疏/不连续内存：有效物理页位图（可为空）
+	struct bootmem_data *bdata;			//!< 引导期分配器状态（bootmem）
+	unsigned long node_start_paddr;			//!< 本节点首个页的物理起始地址（字节）
+	unsigned long node_start_mapnr;			//!< 全局 mem_map 中本节点首个页的索引（PFN）
+	unsigned long node_size;			//!< 本节点覆盖的页数（各 zone 页数之和）
+	int node_id;					//!< NUMA 节点 ID（从 0 开始）
+	struct pglist_data *node_next;			//!< 单向链表指向下一个节点；表头见 `pgdat_list`
 } pg_data_t;
 
 extern int numnodes;
-extern pg_data_t *pgdat_list;
+extern pg_data_t *pgdat_list; //! __EXTERN__: 指向所有内存节点(pg_data_t)的链表表头
 
 #define memclass(pgzone, classzone)	(((pgzone)->zone_pgdat == (classzone)->zone_pgdat) \
 			&& ((pgzone) <= (classzone)))
@@ -126,7 +144,7 @@ extern void free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
   unsigned long *zones_size, unsigned long paddr, unsigned long *zholes_size,
   struct page *pmap);
 
-extern pg_data_t contig_page_data;
+extern pg_data_t contig_page_data; //! __EXTERN__: @see page_alloc.c
 
 #ifndef CONFIG_DISCONTIGMEM
 
