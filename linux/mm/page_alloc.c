@@ -65,7 +65,7 @@ static int zone_balance_max[MAX_NR_ZONES] __initdata = { 255 , 255, 255, };
  * for the normal case, giving better asm-code.
  */
 
-#define memlist_init(x) INIT_LIST_HEAD(x)
+#define memlist_init(x) INIT_LIST_HEAD(x) // 初始化链表头. @see linux/include/linux/list.h
 #define memlist_add_head list_add
 #define memlist_add_tail list_add_tail
 #define memlist_del list_del
@@ -627,6 +627,9 @@ void show_free_areas(void)
 /*
  * Builds allocation fallback zone lists.
  */
+/**
+ * @brief 这是一个内部函数, 用于为每个 NUMA 节点构建 zonelist_t 结构体数组.
+ */
 static inline void build_zonelists(pg_data_t *pgdat)
 {
 	int i, j, k;
@@ -683,6 +686,16 @@ static inline void build_zonelists(pg_data_t *pgdat)
 /**
  * __TODO__(gzh): MM initialization function for setting up memory zones and page structures.
  * 
+ * @param nid Node id (NUMA node index) for which zones are initialized.
+ * @param pgdat Pointer to the node's `pg_data_t` structure (node descriptor).
+ * @param gmap Address of a `struct page *` where the allocated node `mem_map` is returned.
+ * @param zones_size (per-zone) Array of sizes in pages for each zone on this node.
+ * @param zone_start_paddr Physical start address (byte) of the first page in the node.
+ * @param zholes_size Optional array (per-zone) of page counts that are unusable (holes); may be NULL.
+ * @param lmem_map Optional preallocated `struct page *` mem_map; if NULL the function allocates and aligns one.
+ * @return void
+ * 
+ * @ref physical-virtual-distinction
  * @see 00-concepts/swappable-page.md: 
  * 系统在初始化时将部分页框标记为不可对换的,防止内核数据被换出.
  */
@@ -690,43 +703,82 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 	unsigned long *zones_size, unsigned long zone_start_paddr, 
 	unsigned long *zholes_size, struct page *lmem_map)
 {
+	/* iterator for walking the new mem_map pages */
 	struct page *p;
+	/* general loop counters: 'i' for per-zone/order loops, 'j' for zone index */
 	unsigned long i, j;
+	/* size in bytes of the mem_map array for this node */
 	unsigned long map_size;
+	/* totalpages: sum of zones_size[]; realtotalpages subtracts holes */
 	unsigned long totalpages, offset, realtotalpages;
+	/* required alignment for zone start to keep buddy boundaries OK */
 	const unsigned long zone_required_alignment = 1UL << (MAX_ORDER-1);
 
+	/* __OVERDONE__(gzh): i386 架构下的页对齐检查. 非相关.
+	 * @brief 保证 zone_start_paddr 地址是页对齐的.
+	 *
+	 * PAGE_MASK 在 i386 架构下定义为 0xFFFFF000, 区分页地址和页内偏移.
+	 * @code
+	 * PAGE_MASK = 0xFFFFF000
+	 * ~PAGE_MASK = 0x00000FFF
+	 * zone_start_paddr & ~PAGE_MASK = 0 	// 表示 zone_start_paddr
+	 * 										// 的低 12 位全为 0, 即地址是页对齐的.
+	 * @endcode
+	 * PAGE_SHIFT = 12 表示页大小为 2^12 = 4096 字节 = 4KB, PAGE_MASK 用于地址的页对齐.
+	 * 如果给定了一个地址, 要得到该地址所在页的起始地址,可以使用 PAGE_MASK 进行按位与操作:
+	 * @code
+	 * PAGE_MASK = ~((1UL << PAGE_SHIFT) - 1) = 0xFFFFF000
+	 * unsigned long addr = 0x12345; // 示例地址
+	 * unsigned long page_start = addr & PAGE_MASK;
+	 * // 结果为 0x12000, 即该地址所在页的起始地址
+	 * @endcode
+	 * @see page.h 中对 PAGE_MASK 的定义.
+	*/
 	if (zone_start_paddr & ~PAGE_MASK)
 		BUG();
 
+	//! @brief 通过 zones_size 数组和 zholes_size 数组计算节点的实际可用页数.
+	//! @ref zone-based-memory-management.md
 	totalpages = 0;
 	for (i = 0; i < MAX_NR_ZONES; i++) {
-		unsigned long size = zones_size[i];
+		unsigned long size = zones_size[i]; // zones_size 数组存储每个 zone 的页数.
 		totalpages += size;
 	}
-	realtotalpages = totalpages;
+	realtotalpages = totalpages; // totalpages 保护变量, 用于计算实际可用页数.
 	if (zholes_size)
 		for (i = 0; i < MAX_NR_ZONES; i++)
 			realtotalpages -= zholes_size[i];
 			
-	printk("On node %d totalpages: %lu\n", nid, realtotalpages);
+	printk("On node %d totalpages: %lu\n", nid, realtotalpages); // __PRINTK__
 
+	// Init active/inactive page lists.
+	//! active_list 和 inactive_list 用于管理活跃和非活跃页框的链表.
+	//! __GLOBAL__: 是 global 变量, 在文件开头定义, 在这里初始化
 	INIT_LIST_HEAD(&active_list);
 	INIT_LIST_HEAD(&inactive_list);
 
-	/*
+	/**
 	 * Some architectures (with lots of mem and discontinous memory
 	 * maps) have to search for a good mem_map area:
 	 * For discontigmem, the conceptual mem map array starts from 
 	 * PAGE_OFFSET, we need to align the actual array onto a mem map 
 	 * boundary, so that MAP_NR works.
+	 * 
+	 * @note conceptual mem map array: 指的是 mem_map 数组在内核虚拟地址空间中的理想位置.
+	 * 即: 从内核的视角来看, 它用mem_map 数组来"连续"地表示物理内存页框, 即使实际的物理内存可能是不连续的.
+	 * 通过将 mem_map 数组放置在 PAGE_OFFSET 之后并进行适当的对齐, 内核可以更方便地通过索引访问物理页框.
+	 * 
+	 * @note MAP_NR(addr): 是一个宏, 计算((addr) - PAGE_OFFSET) >> PAGE_SHIFT).
+	 * 该宏用于将内核虚拟地址转换为对应的物理页框号.
 	 */
-	map_size = (totalpages + 1)*sizeof(struct page);
+    // 如果传入的 lmem_map 参数为空, 则将其分配为新的 mem_map, 否则直接使用传入的 lmem_map.
+	map_size = (totalpages + 1)*sizeof(struct page); // +1 for possible rounding issues
 	if (lmem_map == (struct page *)0) {
-		lmem_map = (struct page *) alloc_bootmem_node(pgdat, map_size);
+		lmem_map = (struct page *) alloc_bootmem_node(pgdat, map_size); //! 使用@ref bootmem分配器分配 lmem_map 内存.
 		lmem_map = (struct page *)(PAGE_OFFSET + 
-			MAP_ALIGN((unsigned long)lmem_map - PAGE_OFFSET));
+			MAP_ALIGN((unsigned long)lmem_map - PAGE_OFFSET)); // 保证加上 PAGE_OFFSET 后的地址是对齐的.
 	}
+    // 将分配好的内存空间全部赋给 pgdat->node_mem_map, 并初始化 pgdat 结构体的其他字段.
 	*gmap = pgdat->node_mem_map = lmem_map;
 	pgdat->node_size = totalpages;
 	pgdat->node_start_paddr = zone_start_paddr;
@@ -738,14 +790,21 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 	 * up by free_all_bootmem() once the early boot process is
 	 * done.
 	 */
+	/* Initialize every struct page: clear count, mark reserved, init lists */
+	//! __NOTE__: page的初始化方式
 	for (p = lmem_map; p < lmem_map + totalpages; p++) {
 		set_page_count(p, 0);
+		/* mark reserved so boot-time allocator won't hand them out */
 		SetPageReserved(p);
 		init_waitqueue_head(&p->wait);
 		memlist_init(&p->list);
 	}
 
-	offset = lmem_map - mem_map;	
+	//! 计算 lmem_map 相对于全局 mem_map 的偏移量. mem_map 初始化见`free_area_init_node()` @ref mm-core-variables
+	offset = lmem_map - mem_map;
+	/**
+	 * __NOTICE__: 为 page 所在的 zone 初始化 zone 结构体.
+	 */  
 	for (j = 0; j < MAX_NR_ZONES; j++) {
 		zone_t *zone = pgdat->node_zones + j;
 		unsigned long mask;
@@ -783,6 +842,7 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 		if ((zone_start_paddr >> PAGE_SHIFT) & (zone_required_alignment-1))
 			printk("BUG: wrong zone alignment, it will crash\n");
 
+		/* 这里为 zone 内的每个 page 设置其所属的 zone 和虚拟地址映射. */
 		for (i = 0; i < size; i++) {
 			struct page *page = mem_map + offset + i;
 			page->zone = zone;
@@ -792,6 +852,7 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 		}
 
 		offset += size;
+		/* __TODO__: Build buddy bitmaps for each free_area order until MAX_ORDER-1 */
 		for (i = 0; ; i++) {
 			unsigned long bitmap_size;
 
@@ -824,15 +885,21 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 			 * Finally, we LONG_ALIGN because all bitmap
 			 * operations are on longs.
 			 */
-			bitmap_size = (size-1) >> (i+4);
-			bitmap_size = LONG_ALIGN(bitmap_size+1);
-			zone->free_area[i].map = 
-			  (unsigned long *) alloc_bootmem_node(pgdat, bitmap_size);
+						/* number of bytes needed for the map at this order (rounded) */
+						bitmap_size = (size-1) >> (i+4);
+						bitmap_size = LONG_ALIGN(bitmap_size+1);
+						/* allocate the bitmap used to track free buddies at this order */
+						zone->free_area[i].map = 
+							(unsigned long *) alloc_bootmem_node(pgdat, bitmap_size);
 		}
 	}
-	build_zonelists(pgdat);
+		/* finalize by building zonelists used by the allocator fallback paths */
+		build_zonelists(pgdat);
 }
 
+/**
+ * @brief This function delare the parameters that @ref free_area_init_core takes
+ */
 void __init free_area_init(unsigned long *zones_size)
 {
 	free_area_init_core(0, &contig_page_data, &mem_map, zones_size, 0, 0, 0);

@@ -56,6 +56,7 @@ extern int console_printk[];
 struct completion;
 
 extern struct notifier_block *panic_notifier_list;
+//! @brief is a core function used to report a fatal error and halt the system.
 NORET_TYPE void panic(const char * fmt, ...)
 	__attribute__ ((NORET_AND format (printf, 1, 2)));
 asmlinkage NORET_TYPE void do_exit(long error_code)

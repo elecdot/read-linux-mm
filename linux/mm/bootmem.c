@@ -139,6 +139,9 @@ static void __init free_bootmem_core(bootmem_data_t *bdata, unsigned long addr, 
 /*
  * alignment has to be a power of 2 value.
  */
+/** 
+ * @ref bootmem
+ */
 static void * __init __alloc_bootmem_core (bootmem_data_t *bdata, 
 	unsigned long size, unsigned long align, unsigned long goal)
 {
@@ -340,9 +343,12 @@ void * __init __alloc_bootmem (unsigned long size, unsigned long align, unsigned
 	return NULL;
 }
 
+/**
+ * @brief 
+ */
 void * __init __alloc_bootmem_node (pg_data_t *pgdat, unsigned long size, unsigned long align, unsigned long goal)
 {
-	void *ptr;
+	void *ptr; //! void* 类型的通用指针变量, 用于存储分配的内存地址.
 
 	ptr = __alloc_bootmem_core(pgdat->bdata, size, align, goal);
 	if (ptr)
@@ -351,7 +357,7 @@ void * __init __alloc_bootmem_node (pg_data_t *pgdat, unsigned long size, unsign
 	/*
 	 * Whoops, we cannot satisfy the allocation request.
 	 */
-	printk(KERN_ALERT "bootmem alloc of %lu bytes failed!\n", size);
+	printk(KERN_ALERT "bootmem alloc of %lu bytes failed!\n", size); //! __PRINTK__: out of memory
 	panic("Out of memory");
 	return NULL;
 }

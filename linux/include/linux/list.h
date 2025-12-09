@@ -1,3 +1,36 @@
+/**
+ * @file linux/include/linux/list.h
+ * @brief Doubly linked list implementation.
+ *
+ * This file provides a compact, efficient doubly linked list
+ * implementation used throughout the kernel. The core type is
+ * `struct list_head` and the header exposes a small set of
+ * macros and inline helpers to initialize, add, delete and iterate
+ * list entries.
+ *
+ * @section api-index API Index
+ * - `struct list_head` : core list node containing `next` and `prev`.
+ * - `LIST_HEAD_INIT(name)` : static initializer for a `struct list_head`.
+ * - `LIST_HEAD(name)` : declare and initialize a list head variable.
+ * - `INIT_LIST_HEAD(ptr)` : initialize a `struct list_head` at runtime.
+ * - `__list_add(new, prev, next)` : internal helper to insert `new` between `prev` and `next`.
+ * - `list_add(new, head)` : add `new` after `head` (stack-like push).
+ * - `list_add_tail(new, head)` : add `new` before `head` (queue append).
+ * - `__list_del(prev, next)` : internal helper to unlink entries by linking `prev` and `next`.
+ * - `list_del(entry)` : remove `entry` from its list (leaves entry in undefined state).
+ * - `list_del_init(entry)` : remove `entry` and reinitialize it as an empty list head.
+ * - `list_empty(head)` : test whether the list is empty.
+ * - `list_splice(list, head)` : splice list `list` into `head`.
+ * - `list_entry(ptr, type, member)` : obtain containing structure from list head pointer.
+ * - `list_for_each(pos, head)` : iterate forwards over list heads.
+ * - `list_for_each_safe(pos, n, head)` : iterate forwards allowing removal of `pos` during iteration.
+ * - `list_for_each_prev(pos, head)` : iterate backwards over list heads.
+ *
+ * @section usage Usage notes
+ * - List heads are typically embedded in container structures; use `list_entry` to recover the container.
+ * - Use `list_for_each_safe` when deleting entries while iterating.
+ * - `INIT_LIST_HEAD` sets `next` and `prev` to point to the head itself, representing an empty list.
+ */
 #ifndef _LINUX_LIST_H
 #define _LINUX_LIST_H
 

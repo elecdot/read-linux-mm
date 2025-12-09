@@ -57,6 +57,8 @@ void show_free_areas_node(pg_data_t *pgdat)
 
 /*
  * Nodes can be initialized parallely, in no particular order.
+ * 
+ * Is called early kernel initialization
  */
 void __init free_area_init_node(int nid, pg_data_t *pgdat, struct page *pmap,
 	unsigned long *zones_size, unsigned long zone_start_paddr, 

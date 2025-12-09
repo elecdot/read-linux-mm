@@ -65,7 +65,7 @@ typedef struct zone_struct {
 #define ZONE_DMA		0
 #define ZONE_NORMAL		1
 #define ZONE_HIGHMEM		2
-#define MAX_NR_ZONES		3
+#define MAX_NR_ZONES		3 //! Maximum number of memory zones supported.
 
 /*
  * One allocation request operates on a zonelist. A zonelist
@@ -139,6 +139,11 @@ extern pg_data_t contig_page_data;
 
 #endif /* !CONFIG_DISCONTIGMEM */
 
+/** @brief 用于对齐内存映射数组的宏定义.
+ * @param x 需要对齐的地址或大小.
+ * @return 返回对齐后的地址或大小.
+ * @note 该宏通过检查 x 是否已经是 mem_map_t 类型的整数倍, 如果不是,
+ */
 #define MAP_ALIGN(x)	((((x) % sizeof(mem_map_t)) == 0) ? (x) : ((x) + \
 		sizeof(mem_map_t) - ((x) % sizeof(mem_map_t))))
 

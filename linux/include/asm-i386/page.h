@@ -2,9 +2,19 @@
 #define _I386_PAGE_H
 
 /* PAGE_SHIFT determines the page size */
+/** 1UL: unsigned long constant; 1UL << 12 = 4096 units
+ * @brief PAGE_SHIFT = 12 表示页大小为 2^12 = 4096 字节 = 4KB, PAGE_MASK 用于地址的页对齐.
+ * @note 而1UL表示无符号长整型常量1,确保左移操作后结果为无符号长整型.
+ * 长整型为了适应32位和64位机器: 在32位机器上长整型为32位,在64位机器上长整型为64位.
+ * 如果给定了一个地址, 要得到该地址所在页的起始地址,可以使用 PAGE_MASK 进行按位与操作:
+ * @code
+ * unsigned long addr = 0x12345; // 示例地址
+ * unsigned long page_start = addr & PAGE_MASK; // 结果为 0x12000, 即该地址所在页的起始地址
+ * @endcode
+*/
 #define PAGE_SHIFT	12
-#define PAGE_SIZE	(1UL << PAGE_SHIFT)
-#define PAGE_MASK	(~(PAGE_SIZE-1))
+#define PAGE_SIZE	(1UL << PAGE_SHIFT) //! PAGE_SIZE = 0x00001000 = 4096 bytes
+#define PAGE_MASK	(~(PAGE_SIZE-1)) //! PAGE_MASK = 0xFFFFF000
 
 #ifdef __KERNEL__
 #ifndef __ASSEMBLY__
