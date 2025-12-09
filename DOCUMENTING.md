@@ -47,6 +47,7 @@ For a concrete example, open `linux/mm/page_alloc.c` and inspect the `__free_pag
 - **Tag system**: Use a simple tag system to track tasks (e.g., `rg '<tag>'`). Include a short personal identifier to avoid collisions with other contributors, for example `__TODO__(gzh)`.
   - When creating a tag for a task, include a one-line summary or outcome after the identifier. Example: `__TODO__(gzh): introduce tag system`.
   - **__TODO__ & __DONE__**: Prefer the underlined forms (`__TODO__`, `__DONE__`) so they are easier to match and less likely to collide with TODO/DONE markers in the Linux source tree.
+  - Current activated tags: `__TODO__`, `__DONE__`, `__EXTERN__`, `__PRINTK__`
 - **Metadata Header**: It's helpful for each document to start with a YAML front matter block. This lets us track related topics, tags, and source files.
 
   ```markdown
