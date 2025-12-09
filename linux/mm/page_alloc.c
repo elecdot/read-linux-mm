@@ -227,49 +227,64 @@ static inline struct page * expand (zone_t *zone, struct page *page,
 }
 
 static FASTCALL(struct page * rmqueue(zone_t *zone, unsigned int order));
+/**
+ * @brief 从指定 zone 的伙伴系统空闲链表中分配页块。
+ *
+ * 在给定的 @p zone 中寻找满足请求阶（@p order）或更高阶的空闲块；如果找到更高阶块，
+ * 通过 expand() 逐级拆分为所需阶。整个过程在 zone 自旋锁保护下更新伙伴位图与统计。
+ *
+ * @param zone 目标分配的内存区域（zone）。
+ * @param order 分配阶（0=单页，1=2页，...）。
+ * @return struct page* 返回分配页块的首个 `struct page`，失败返回 NULL。
+ *
+ * @note 调用者负责通过 zonelists 选择 zone；本函数仅在单个 zone 内分配。返回页的引用计数为 1。
+ * @see expand(), free_area_t, zone_t::free_area, MARK_USED
+ */
 static struct page * rmqueue(zone_t *zone, unsigned int order)
 {
-	free_area_t * area = zone->free_area + order;
-	unsigned int curr_order = order;
-	struct list_head *head, *curr;
-	unsigned long flags;
-	struct page *page;
+	free_area_t * area = zone->free_area + order; //! 从请求阶对应的空闲链表开始扫描
+	unsigned int curr_order = order;              //! 当前正在扫描的阶（可能逐级提升）
+	struct list_head *head, *curr;                //! 该阶的空闲链表头与遍历指针
+	unsigned long flags;                          //! 自旋锁保存的中断标志
+	struct page *page;                            //! 候选页块（伙伴块的首页）
 
-	spin_lock_irqsave(&zone->lock, flags);
+	spin_lock_irqsave(&zone->lock, flags);        //! 保护伙伴链表/位图与 zone 统计
 	do {
-		head = &area->free_list;
-		curr = memlist_next(head);
+		head = &area->free_list;                    //! 该阶的空闲链表
+		curr = memlist_next(head);                  //! 取链表第一个元素（为空则为 head 自身）
 
 		if (curr != head) {
-			unsigned int index;
+			unsigned int index;                      //! 所选块在本 zone 的 PFN 索引
 
+			/* 从该阶空闲链表摘除第一个空闲块 */
 			page = memlist_entry(curr, struct page, list);
 			if (BAD_RANGE(zone,page))
 				BUG();
-			memlist_del(curr);
-			index = page - zone->zone_mem_map;
+			memlist_del(curr);                        //! 从该阶空闲链表删除
+			index = page - zone->zone_mem_map;        //! 相对本区基址计算索引
 			if (curr_order != MAX_ORDER-1)
-				MARK_USED(index, curr_order, area);
-			zone->free_pages -= 1UL << order;
+				MARK_USED(index, curr_order, area);    //! 在该阶伙伴位图将对应位标记为“已用”
+			/* 以底层页数为单位进行统计 */
+			zone->free_pages -= 1UL << order;         //! 空闲页数减少 2^order 页
 
-			page = expand(zone, page, index, order, curr_order, area);
-			spin_unlock_irqrestore(&zone->lock, flags);
+			page = expand(zone, page, index, order, curr_order, area); //! 将更高阶块拆分到所需阶
+			spin_unlock_irqrestore(&zone->lock, flags); //! 返回前释放锁
 
-			set_page_count(page, 1);
+			set_page_count(page, 1);                  //! 返回的页块首页引用计数设为 1
 			if (BAD_RANGE(zone,page))
 				BUG();
 			if (PageLRU(page))
 				BUG();
 			if (PageActive(page))
 				BUG();
-			return page;	
+			return page;                             //! 成功
 		}
-		curr_order++;
-		area++;
+		curr_order++;                               //! 当前阶为空：提升到更高阶继续尝试
+		area++;                                     //! 前进到下一阶的 free_area
 	} while (curr_order < MAX_ORDER);
-	spin_unlock_irqrestore(&zone->lock, flags);
+	spin_unlock_irqrestore(&zone->lock, flags);     //! 本 zone 所有阶均无可用块
 
-	return NULL;
+	return NULL;                                   //! 在该 zone 分配失败
 }
 
 #ifndef CONFIG_DISCONTIGMEM
