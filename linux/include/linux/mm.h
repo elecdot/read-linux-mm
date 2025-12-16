@@ -151,14 +151,32 @@ struct vm_operations_struct {
 /** __DONE__(gzh): 物理内存页框结构体 mem_map_t 的定义
  * @brief Physical memory page frame descriptor.
  * 
- * Represents a single physical page in the kernel memory management subsystem.
- * Each page is managed through this structure, which tracks the page's state,
+ * Each physical page is managed through this structure, which tracks the page's state,
  * ownership, and usage.(See @ref page_flags) The structure is optimized for 
  * page cache lookup and linear searches (e.g., clock algorithm scans).
  * 
+ * For instance:
+ * 1. it must be able to distinguish the page frames that are used to contain
+ * pages that belong to processes from those that contain kernel code or data structures.
+ * 2. it must track whether a page is "free". @see ULK P295
+ * 
+ * @note Each descriptor is 32 bytes long. (the space required by `mem_map` is less than 1%)
  * @note Try to keep the most commonly accessed fields in single cache lines (32 bytes).
+ * 
+ * @see `include/asm-i386/page.h`
+ * @code
+ * virt_to_page(kaddr)
+ * // this macro yields the addressof the page descriptor associated 
+ * // with the linear address addr.
+ * @endcode
+ * 
+ * @see `pfn_to_page(pfn)` macro yields the address of the page descriptor
+ * associated with the page frame having number pfn.
  */
 typedef struct page {
+	//! @ref page_flags 中定义的各种状态标志位.
+	unsigned long flags;		/* atomic flags, some possibly
+					   updated asynchronously */
 	/** 
 	 * @brief This points to the list of pages in the same `mapping` (inode):
 	 * @code
@@ -183,9 +201,6 @@ typedef struct page {
 					   the pagecache hash table. */
 	//! 该页框被某些进程或内核引用的计数. (0--空闲)
 	atomic_t count;			/* Usage count, see below. */
-	//! @ref page_flags 中定义的各种状态标志位.
-	unsigned long flags;		/* atomic flags, some possibly
-					   updated asynchronously */
 	//! LRU 算法链表,表示该页框在活跃/非活跃链表中的位置. 由 pagemap_lru_lock 维护.
 	struct list_head lru;		/* Pageout list, eg. active_list;
 					   protected by pagemap_lru_lock !! */
