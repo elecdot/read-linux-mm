@@ -52,32 +52,32 @@ typedef struct zone_struct {
 	/*
 	 * Commonly accessed fields:
 	 */
-	spinlock_t		lock;                   //! Spinlock to protect zone's data structures during concurrent access.
-	unsigned long		free_pages;    		//! Number of free pages in this zone.
-	unsigned long		pages_min;          //! Number of reserved pages of the zone @ref reserved_page_pool
-	unsigned long		pages_low;          //! Low watermark of page frame reclaiming; also used by the zone allocator as a threshold value @ref zone_allocator
-	unsigned long		pages_high;         //! High watermark of page frame reclaiming; same as `pages_low`, @ref zone_allocator
+	spinlock_t		lock;                   //!< Spinlock to protect zone's data structures during concurrent access.
+	unsigned long		free_pages;    		//!< Number of free pages in this zone.
+	unsigned long		pages_min;          //!< Number of reserved pages of the zone @ref reserved_page_pool
+	unsigned long		pages_low;          //!< Low watermark of page frame reclaiming; also used by the zone allocator as a threshold value @ref zone_allocator
+	unsigned long		pages_high;         //!< High watermark of page frame reclaiming; same as `pages_low`, @ref zone_allocator
 	
-	int			need_balance;               //! A needs writeback flag for the kswapd daemon to indicate if this zone needs balancing.
+	int			need_balance;               //!< A needs writeback flag for the kswapd daemon to indicate if this zone needs balancing.
 
 	/*
 	 * free areas of different sizes
 	 */
-	free_area_t		free_area[MAX_ORDER];   //! @ref buddy-system free area lists for different orders.
+	free_area_t		free_area[MAX_ORDER];   //!< @ref buddy-system free area lists for different orders.
 
 	/*
 	 * Discontig memory support fields.
 	 */
-	struct pglist_data	*zone_pgdat;      //! Back pointer to the pglist_data (node) that owns this zone (contig_page_data, of course).
-	struct page		*zone_mem_map;        //! Pointer to the page descriptor array for all page frames in this zone.
-	unsigned long		zone_start_paddr;  //! Starting physical address (the real physical memory address) of this zone.
-	unsigned long		zone_start_mapnr;  //! Starting index/offset in the global mem_map array; used to map page frames to descriptors in this zone.
+	struct pglist_data	*zone_pgdat;      //!< Back pointer to the pglist_data (node) that owns this zone (contig_page_data, of course).
+	struct page		*zone_mem_map;        //!< Pointer to the page descriptor array for all page frames in this zone.
+	unsigned long		zone_start_paddr;  //!< Starting physical address (the real physical memory address) of this zone.
+	unsigned long		zone_start_mapnr;  //!< Starting index/offset in the global mem_map array; used to map page frames to descriptors in this zone.
 
 	/*
 	 * rarely used fields:
 	 */
-	char			*name;                //! Zone name for debugging purposes, e.g., "DMA", "Normal", "HighMem".
-	unsigned long		size;             //! Total number of page frames in this zone.
+	char			*name;                //!< Zone name for debugging purposes, e.g., "DMA", "Normal", "HighMem".
+	unsigned long		size;             //!< Total number of page frames in this zone.
 	/**
 	 * @warning Lost a bunch of fields here in comparison to Linux 2.6.
 	 */
@@ -145,22 +145,22 @@ struct bootmem_data;
  */
 typedef struct pglist_data {
 	/* === Node Management === */
-	unsigned long node_start_paddr;             //! Physical address of the first page frame in this node.
-	unsigned long node_start_mapnr;             //! Index of the first page descriptor in the global mem_map (physical page descriptors) array for this node. @code page = &node->node_mem_map[(physical_address / PAGE_SIZE) - node->node_start_mapnr]; @endcode
-	int node_id;                                //! Unique identifier for this NUMA node.
-	struct pglist_data *node_next;              //! Pointer to the next node descriptor in the NUMA node list.
+	unsigned long node_start_paddr;             //!< Physical address of the first page frame in this node.
+	unsigned long node_start_mapnr;             //!< Index of the first page descriptor in the global mem_map (physical page descriptors) array for this node. @code page = &node->node_mem_map[(physical_address / PAGE_SIZE) - node->node_start_mapnr]; @endcode
+	int node_id;                                //!< Unique identifier for this NUMA node.
+	struct pglist_data *node_next;              //!< Pointer to the next node descriptor in the NUMA node list.
 
 	/* === Zone Management === */
-	zone_t node_zones[MAX_NR_ZONES]; 			//! Array of zone descriptors of this node.
-	zonelist_t node_zonelists[GFP_ZONEMASK+1];  //! Array of zonelist data structures used by the page allocator. @ref zone-selection-gfp
-	int nr_zones;                               //! Number of zones in this node.
+	zone_t node_zones[MAX_NR_ZONES]; 			//!< Array of zone descriptors of this node.
+	zonelist_t node_zonelists[GFP_ZONEMASK+1];  //!< Array of zonelist data structures used by the page allocator. @ref zone-selection-gfp
+	int nr_zones;                               //!< Number of zones in this node.
 
 	/* === Page Management === */
-	struct page *node_mem_map;                  //! Pointer to the "Array" of page descriptors of this node.
-	unsigned long *valid_addr_bitmap;           //! Bitmap indicating valid physical address ranges in this node.
+	struct page *node_mem_map;                  //!< Pointer to the "Array" of page descriptors of this node.
+	unsigned long *valid_addr_bitmap;           //!< Bitmap indicating valid physical address ranges in this node.
 
 	/* === Initialization === */
-	struct bootmem_data *bdata;                 //! Used in the kernel initialization phase to manage boot memory.
+	struct bootmem_data *bdata;                 //!< Used in the kernel initialization phase to manage boot memory.
 
 	/*
 	 * There are missed field compared to Linux 2.6, e.g. `kswapd_awit`:
