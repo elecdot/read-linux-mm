@@ -267,6 +267,11 @@ extern unsigned long pg0[1024];
  * Permanent address of a page. Obviously must never be
  * called on a highmem page.
  */
+/**
+ * @brief Get the virtual address of a page
+ * 
+ * @warning Only valid for non-highmem pages
+ */
 #define page_address(page) ((page)->virtual)
 #define pages_to_mb(x) ((x) >> (20-PAGE_SHIFT))
 

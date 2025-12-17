@@ -4,6 +4,7 @@ related:
 - "[Buddy System](buddy-system.md)"
 - "[Zone-Based Memory Management](zone-based-memory-management.md)"
 - "[Page Flags](page-flags.md)"
+- "[Kernel Mappings of High-Memory Page Frames](highmem-kernel-mapping.md)"
 tags:
 - memory-management
 - allocator
@@ -58,6 +59,10 @@ __free_page(addr)
 ```
 
 ---
+
+### Kernel Mappings of High-Memory Page Frames
+
+>[!tldr] `page_address(page)` 仅对非高端内存页有效。896MB 以上的高端内存页框没有对应的内核线性地址。因此不能使用 `__get_free_pages(GFP_HIGHMEM,0)`。应该使用 `alloc_page(GFP_HIGHMEM)` 返回页描述符指针，然后通过 `kmap()` 临时映射来访问页内容。详见 [Kernel Mappings of High-Memory Page Frames](highmem-kernel-mapping.md) 。
 
 ### 核心函数：`__alloc_pages`
 

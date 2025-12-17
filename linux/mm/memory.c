@@ -51,6 +51,12 @@
 
 unsigned long max_mapnr;
 unsigned long num_physpages;
+/**
+ * @brief The end of the directly mapped physical memory, and thus to the beginning
+ * of the high memory, which is set to 896 MB (typically, but calculated dynamically).
+ * @note The linear address space from PAGE_OFFSET to high_memory is
+ * directly mapped to physical memory.
+ */
 void * high_memory;
 struct page *highmem_start_page;
 
@@ -1422,21 +1428,21 @@ out:
  * We've already handled the fast-path in-line, and we own the
  * page table lock.
  */
- /**__DONE__(nyz):¶Ô pte_alloc º¯Êı½øĞĞËµÃ÷
-  * @brief ÔÚ¸ø¶¨µÄÄ¿Â¼Ïî£¨PMD£©ÖĞ·ÖÅäÒ»¸öĞÂµÄÒ³±íÏî£¬²¢½«ÆäÓëÖ¸¶¨µÄĞéÄâµØÖ·¹ØÁªÆğÀ´
+ /**__DONE__(nyz):ï¿½ï¿½ pte_alloc ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ëµï¿½ï¿½
+  * @brief ï¿½Ú¸ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼ï¿½î£¨PMDï¿½ï¿½ï¿½Ğ·ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Âµï¿½Ò³ï¿½ï¿½ï¿½î£¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
   * 
-  *	@param struct mm_struct *mm £ºÄÚ´æ¹ÜÀí½á¹¹Ìå
-  * @param pmd_t *pmd £ºÖ¸ÏòÒ³Ä¿Â¼ÏîµÄÖ¸Õë
-  * @param unsigned long address £ºĞéÄâµØÖ·£¬ÓÃÓÚÈ·¶¨Ò³±íÏîµÄÎ»ÖÃ
+  *	@param struct mm_struct *mm ï¿½ï¿½ï¿½Ú´ï¿½ï¿½ï¿½ï¿½ï¿½á¹¹ï¿½ï¿½
+  * @param pmd_t *pmd ï¿½ï¿½Ö¸ï¿½ï¿½Ò³Ä¿Â¼ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½
+  * @param unsigned long address ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½Ò³ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½
   */
 pte_t *pte_alloc(struct mm_struct *mm, pmd_t *pmd, unsigned long address)
 {
-	if (pmd_none(*pmd)) {						// ¼ì²éÒ³Ä¿Â¼ÏîÊÇ·ñÎª¿Õ
+	if (pmd_none(*pmd)) {						// ï¿½ï¿½ï¿½Ò³Ä¿Â¼ï¿½ï¿½ï¿½Ç·ï¿½Îªï¿½ï¿½
 		pte_t *new;
 
 		/* "fast" allocation can happen without dropping the lock.. */
-		new = pte_alloc_one_fast(mm, address);	// ³¢ÊÔ¿ìËÙ·ÖÅäÒ»¸öĞÂµÄÒ³±í£¬¶ø²»ÊÍ·ÅËø
-		if (!new) {								// Èç¹û¿ìËÙ·ÖÅäÊ§°Ü£¨¼´Ã»ÓĞ×ã¹»µÄÄÚ´æ£©£¬ÔòÊÍ·ÅËø²¢½øĞĞÂıËÙ·ÖÅä
+		new = pte_alloc_one_fast(mm, address);	// ï¿½ï¿½ï¿½Ô¿ï¿½ï¿½Ù·ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Âµï¿½Ò³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í·ï¿½ï¿½ï¿½
+		if (!new) {								// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ù·ï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½ï¿½ï¿½Ã»ï¿½ï¿½ï¿½ã¹»ï¿½ï¿½ï¿½Ú´æ£©ï¿½ï¿½ï¿½ï¿½ï¿½Í·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ù·ï¿½ï¿½ï¿½
 			spin_unlock(&mm->page_table_lock);
 			new = pte_alloc_one(mm, address);
 			spin_lock(&mm->page_table_lock);
@@ -1447,8 +1453,8 @@ pte_t *pte_alloc(struct mm_struct *mm, pmd_t *pmd, unsigned long address)
 			 * Because we dropped the lock, we should re-check the
 			 * entry, as somebody else could have populated it..
 			 */
-			if (!pmd_none(*pmd)) {				// ¼ì²éÒ³Ä¿Â¼ÏîÊÇ·ñÈÔÎ´¿Õ£¨²»Îª¿ÕËµÃ÷ÊÍ·ÅËøÆÚ¼ä£¬ÆäËûÏß³Ì
-												// ÒÑ¾­·ÖÅäÁËÒ³±í£¬Òò´ËĞèÒªÊÍ·ÅĞÂ·ÖÅäµÄÒ³±í£©
+			if (!pmd_none(*pmd)) {				// ï¿½ï¿½ï¿½Ò³Ä¿Â¼ï¿½ï¿½ï¿½Ç·ï¿½ï¿½ï¿½Î´ï¿½Õ£ï¿½ï¿½ï¿½Îªï¿½ï¿½Ëµï¿½ï¿½ï¿½Í·ï¿½ï¿½ï¿½ï¿½Ú¼ä£¬ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½
+												// ï¿½Ñ¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½Í·ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½Ò³ï¿½ï¿½ï¿½ï¿½
 				pte_free(new);
 				goto out;
 			}

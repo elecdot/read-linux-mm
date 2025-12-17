@@ -1,119 +1,96 @@
 ---
 related:
-  - "[Zone-based Memory Management](../00-concepts/zone-based-memory-management.md)"
-  - "[Address Translation](../00-concepts/address-translation.md)"
-  - "[Physical-Virtual Memory](../00-concepts/phys-virt.md)"
+- "[Zoned Page Frame Allocator](zoned-page-frame-allocator.md)"
+- "[Zone-Based Memory Management](zone-based-memory-management.md)"
+- "[Page Descriptor (mem_map)](mm-core-variables.md)"
+- "[Address Translation](address-translation.md)"
 tags:
-  - memory-management
-  - highmem
-  - address-space
-  - kernel-mapping
+- memory-management
+- high-memory
+- kernel-mapping
+- linear-address
+- kmap
+- page-frame
 sources:
-  - "[include/linux/mmzone.h](../../linux/include/linux/mmzone.h)"
-  - "[include/linux/mm.h](../../linux/include/linux/mm.h)"
-  - "[Linux 2.4 内存管理 - 高端内存映射]"
+- "[include/linux/highmem.h](/linux/include/linux/highmem.h)"
+- "[mm/highmem.c](/linux/mm/highmem.c)"
+- "[mm/page_alloc.c](/linux/mm/page_alloc.c)"
 ---
 
-/*! \page highmem_kernel_mapping Kernel Mapping of High-Memory Page Frames
+/*! \page highmem-kernel-mapping Kernel Mappings of High-Memory Page Frames
 
-高端内存（High Memory）是指在 32 位 x86 系统上，超过 896MB 的物理内存。由于内核地址空间限制（4GB 线性地址空间且需要保留 1GB 供内核），无法直接映射到内核虚拟地址空间。因此，内核采用**动态映射**技术，仅在需要时将高端内存页框临时映射到内核虚拟地址空间的固定区域（`ZONE_HIGHMEM`），以便访问这些页框。
+This page introduces:
+高端内存页框无法被直接映射到内核线性地址空间，需要通过临时映射机制（kmap/kunmap）来访问。
 */
 
-# Kernel Mapping of High-Memory Page Frames
+# 高端内存页框的内核映射 (Kernel Mappings of High-Memory Page Frames)
 
-## In a Word
+## 一句话总结 (In a Word)
 
-高端内存（High Memory）是指在 32 位 x86 系统上，超过 896MB 的物理内存。由于内核地址空间限制（4GB 线性地址空间且需要保留 1GB 供内核），无法直接映射到内核虚拟地址空间。因此，内核采用**动态映射**技术，仅在需要时将高端内存页框临时映射到内核虚拟地址空间的固定区域（`ZONE_HIGHMEM`），以便访问这些页框。
+896 MB 以上的物理页框（ZONE_HIGHMEM）不被映射到内核线性地址空间。
+必须通过 **动态映射**（Dynamic Mapping）机制，将高端物理页框临时映射到内核空间最后 128MB 中的特定区域（PKMAP/FIXMAP/VMALLOC），才能被内核访问。
 
-## Why This Concept
+## 核心问题：1GB 地址空间限制
 
-在现代 32 位系统中，物理 RAM 可达 4GB，但内核虚拟地址空间只有 1GB（通常 0xC0000000 ~ 0xFFFFFFFF）。这导致并非所有物理内存都能被内核直接访问。对于超出 896MB 的物理内存：
+在 32 位系统 4GB 地址空间中，内核只拥有 1GB（`0xC000_0000` ~ `0xFFFF_FFFF`）。
 
-- **DMA 区域** (< 16 MB)：用于 ISA 设备，直接映射到内核地址空间
-- **NORMAL 区域** (16 MB ~ 896 MB)：直接线性映射到内核地址空间的第四 GB
-- **HIGHMEM 区域** (> 896 MB)：无法直接映射，需要特殊处理
+*   **低端内存 (Low Memory, 0~896MB)**: 直接映射（Direct Mapping），物理地址与虚拟地址固定偏移。
+*   **高端内存 (High Memory, >896MB)**: 无固定映射，必须借用内核空间最后的 ~128MB 窗口进行访问。
 
-理解高端内存映射机制对掌握 Linux 内存管理的完整图景至关重要，特别是在优化缓存管理和页面交换时。
+### 内核地址空间布局 (高位 1GB)
 
-## Deep Dive
-
-### 硬件约束
-
-80x86 架构存在两个关键约束：
-
-1. **DMA 限制**：老旧的 ISA 设备只能访问 16MB 以下的物理内存。
-2. **地址空间限制**：32 位系统的线性地址空间总计4GB。
-
-### 内核地址空间分布
-
-在 Linux 2.4 x86 32 位系统中的虚拟地址空间布局：
-
-```
-0xFFFFFFFF +------------------+
-           |  固定映射区        |
-           | (FIXMAP/HIGHMEM) | ~4MB
-           | 高端内存临时映射    |
-           | APIC、BIOS等      |
-0xFFC00000 +------------------+
-           |                  |
-           |  ZONE_NORMAL     |
-           | (直接内核映射)     | ~896MB
-           |  线性映射区       |
-           |  (可直接访问)     |
-0xC0000000 +------------------+
-           |                  |
-           |   用户空间        |
-           | (进程虚拟地址)     | ~3GB
-           |                  |
-0x00000000 +------------------+
+```text
+0xFFFF_FFFF ┌──────────────────────────┐
+            │ FIXMAP (~32KB)           │ ← kmap_atomic (CPU独占, 极快)
+            ├──────────────────────────┤
+            │ PKMAP (2-4MB)            │ ← kmap (可能阻塞, 进程上下文)
+            ├──────────────────────────┤
+            │ VMALLOC (~120MB)         │ ← vmalloc (虚拟连续, 物理离散)
+            ├──────────────────────────┤
+0xC080_0000 │ 直接映射区 (896MB)       │ ← ZONE_NORMAL / ZONE_DMA
+            ├──────────────────────────┤
+0xC000_0000 │ 用户空间 (3GB)           │
+0x0000_0000 └──────────────────────────┘
 ```
 
-**分布说明**：
+## 三种映射机制
 
-- **0x00000000 ~ 0xBFFFFFFF**（3GB）：用户空间 - 每个进程有独立副本
-- **0xC0000000 ~ 0xFFFFFFFF**（1GB）：内核空间 - 全局共享
-  - **0xC0000000 ~ (0xC0000000 + NORMAL_SIZE)**：`ZONE_NORMAL` 的线性映射（~896 MB）
-  - **0xFFC00000 ~ 0xFFFFFFFF**：固定映射区（高端内存临时映射、APIC、BIOS 等）
+### 1. 永久内核映射 (`kmap`)
+*   **区域**: PKMAP (Page Kernel Mapping). 使用`pkmap_page_table`并定义
+             了`LAST_PKMAP`--可用页表项(PTE,槽位)的总数
+*   **大小**: 2MB (512 个槽位 `2MB = 512 * 4KB`) 或 4MB (1024 个槽位，PAE模式).
+*   **行为**: 将页映射到虚拟地址。如果没有空闲槽位，**可能会睡眠**。
+*   **适用**: 仅限进程上下文。
+*   **API**: `void *kmap(struct page *page)` / `kunmap(page)`
 
-### 高端内存的动态映射
+### 2. 临时内核映射 (`kmap_atomic`)
+*   **区域**: FIXMAP (Fixed Mapping).
+*   **大小**: 非常小，每个 CPU 有固定数量的槽位 (KM_TYPE_NR)。
+*   **行为**: **原子操作**，绝不睡眠。使用每 CPU 专用槽位。
+*   **适用**: 中断处理程序、软中断 (softirqs)、临界区。
+*   **API**: `void *kmap_atomic(page, type)` / `kunmap_atomic(vaddr, type)`
 
-当内核需要访问高端内存中的页框时：
+### 3. 非连续内存分配 (`vmalloc`)
+*   **区域**: VMALLOC.
+*   **大小**: ~120MB.
+*   **行为**: 分配虚拟地址连续但物理页不连续的内存。
+*   **适用**: 大块缓冲区、内核模块。开销较大（TLB 抖动）。
+*   **API**: `void *vmalloc(size)` / `vfree(addr)`
 
-1. **申请映射**：调用 `kmap()` 或 `kmap_atomic()`，从固定映射区获取一个临时虚拟地址
-2. **建立页表项**：设置临时虚拟地址到目标物理页框的页表映射
-3. **访问数据**：通过临时虚拟地址读写页框内容
-4. **解除映射**：调用 `kunmap()` 或 `kunmap_atomic()`，释放临时映射槽位
+## 决策指南
 
-### 数据结构
-
-在 [mmzone.h](../../linux/include/linux/mmzone.h) 中定义：
-
-```c
-typedef struct zone_struct {
-    // ...
-    spinlock_t  lock;
-    unsigned long free_pages;        // 区域内的空闲页数
-    // ...
-} zone_t;
-
-#define ZONE_DMA      0
-#define ZONE_NORMAL   1
-#define ZONE_HIGHMEM  2
-#define MAX_NR_ZONES  3
+```text
+当前上下文?
+  ├─ 中断/原子上下文? ──→ kmap_atomic()
+  └─ 进程上下文?
+       ├─ 需要连续的虚拟地址数组? ──→ vmalloc()
+       └─ 单页访问? ──→ kmap()
 ```
 
-- **ZONE_DMA**：< 16 MB，可供 ISA 设备 DMA 使用
-- **ZONE_NORMAL**：16 MB ~ 896 MB，内核直接访问
-- **ZONE_HIGHMEM**：> 896 MB，需动态映射
+## 总结表
 
-### 实际意义
-
-- **页面缓存**：文件 I/O 缓冲可以存储在高端内存中，减少 `ZONE_NORMAL` 压力
-- **用户进程**：用户页面优先分配在高端内存
-- **内核操作**：对高端内存的临时访问通过 `kmap()` 完成，映射后自动释放
-
-## Related Concepts
-
-- [Zone-based Memory Management](zone-based-memory-management.md)：内存区域划分策略
-- [Address Translation](address-translation.md)：地址转换机制
-- [Physical-Virtual Memory](phys-virt.md)：物理与虚拟地址关系
+| 机制 | 适用上下文 | 能否睡眠? | 映射区域 | 限制 |
+|------|-----------|----------|---------|------|
+| **kmap** | 进程上下文 | 能 | PKMAP | 全局锁，槽位有限 |
+| **kmap_atomic** | 任意 (含中断) | 否 | FIXMAP | 每 CPU 槽位，生命周期短 |
+| **vmalloc** | 进程上下文 | 能 | VMALLOC | TLB 开销大，速度较慢 |
