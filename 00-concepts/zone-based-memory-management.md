@@ -1,12 +1,14 @@
 ---
 related:
 - "[Buddy System](buddy-system.md)"
+- "[Zone Selection Strategy](zone-selection-gfp.md)"
 tags:
 - memory-management
 - physical-memory
 - memory-zones
 sources:
 - "[include/linux/mmzone.h](/linux/include/linux/mmzone.h)"
+- "[mm/page_alloc.c](/linux/mm/page_alloc.c)"
 - "[Documentation/memory.txt](/linux/Documentation/memory.txt)"
 ---
 /*! \page zone-based-memory-management Zone-Based Memory Management

@@ -13,6 +13,9 @@
  * @file linux/mm/page_alloc.c
  * @brief Zoned buddy page allocator: allocation, freeing, and zone accounting.
  *
+ * @ref buddy-system
+ * @ref zone-based-memory-management
+ *
  * @code This is just a example, you may want to change it @endcode
  * This translation of the kernel's page allocator implements the zoned
  * buddy allocator used to manage physical pages. It provides routines to
@@ -88,6 +91,7 @@ static void FASTCALL(__free_pages_ok (struct page *page, unsigned int order));
 
 /**
  * @brief Free a block of pages and return it to the buddy allocator.
+ * @ref buddy-system
  *
  * @code This is just a example, you may want to change it @endcode
  * Frees the block of 2^order pages starting at @p page. The function
