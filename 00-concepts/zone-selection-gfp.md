@@ -1,5 +1,6 @@
 ---
 related:
+- "[The Zoned Page Frame Allocator](zoned-page-frame-allocator.md)"
 - "[Zone-Based Memory Management](zone-based-memory-management.md)"
 - "[Buddy System](buddy-system.md)"
 - "[MM Core Variables](mm-core-variables.md)"
@@ -72,6 +73,17 @@ typedef struct pglist_data {
 } pg_data_t;
 ```
 
+内容包括：
+```c
+// 伪代码示意
+contig_page_data.node_zonelists = [
+    [GFP 组合0] → [zone列表0],
+    [GFP 组合1] → [zone列表1],
+    [GFP 组合2] → [zone列表2],
+    ...
+]
+```
+
 在系统启动时，`build_zonelists()` 为所有 16 个可能的 GFP 组合预构建相应的 zonelist：
 
 ```c
@@ -137,6 +149,8 @@ struct page *_alloc_pages(unsigned int gfp_mask, unsigned int order)
     /*                                      直接索引到预构建的 zonelist */
 }
 ```
+
+关于 `__alloc_pages` 的详细分配逻辑（水位检查、唤醒 kswapd 等），请参阅 **[The Zoned Page Frame Allocator](zoned-page-frame-allocator.md)**。
 
 然后分配器逐个遍历该 zonelist 中的 zone：
 
@@ -224,6 +238,23 @@ struct page *page = alloc_pages(GFP_HIGHUSER, 0);
  * - zonelist 包含 [ZONE_HIGHMEM, ZONE_NORMAL, ZONE_DMA]
  * - 优先高端内存（用户进程空间），可回退到普通和 DMA 区域
  */
+```
+
+代码表达（case优先级）：
+```c
+case ZONE_HIGHMEM:
+    zone = pgdat->node_zones + ZONE_HIGHMEM;
+    if (zone->size) {
+        zonelist->zones[j++] = zone;
+    }
+case ZONE_NORMAL:
+    zone = pgdat->node_zones + ZONE_NORMAL;
+    if (zone->size)
+        zonelist->zones[j++] = zone;
+case ZONE_DMA:
+    zone = pgdat->node_zones + ZONE_DMA;
+    if (zone->size)
+        zonelist->zones[j++] = zone;
 ```
 
 ## 与伙伴系统的关系

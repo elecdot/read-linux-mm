@@ -471,16 +471,29 @@ rebalance:
 /*
  * Common helper functions.
  */
+/**
+ * @brief Allocate 2^order pages and return their virtual (linear) address.
+ * @param gfp_mask Allocation flags
+ * @param order Power of two pages to allocate
+ * @return unsigned long Virtual address of the allocated area, or 0 on failure
+ * @note Simply `(unsigned long) page_address(alloc_pages(gfp_mask, order))`
+ */
 unsigned long __get_free_pages(unsigned int gfp_mask, unsigned int order)
 {
 	struct page * page;
 
 	page = alloc_pages(gfp_mask, order);
-	if (!page)
+	if (!page)                                  // 好代码
 		return 0;
 	return (unsigned long) page_address(page);
 }
 
+/**
+ * @brief Allocate a single zero-filled page and return its virtual address.
+ * @param gfp_mask Allocation flags
+ * @return unsigned long Virtual address of the allocated page, or 0 on failure
+ * @warning Simply use `alloc_pages(gfp_mask | __GFP_ZERO, 0)` instead after Linux 2.6.11
+ */
 unsigned long get_zeroed_page(unsigned int gfp_mask)
 {
 	struct page * page;
@@ -494,12 +507,38 @@ unsigned long get_zeroed_page(unsigned int gfp_mask)
 	return 0;
 }
 
+/**
+ * @brief Free 2^order pages and return them to the buddy allocator.
+ * @param page Pointer to the first struct page of the block to free
+ * @param order Order of the block to free (0 = single page, 1 = two pages, etc.)
+ * @return void
+ * 
+ * @warning **No validation on other pages in the block:** This function only checks
+ *          the reference count of the FIRST page (via put_page_testzero()). If the
+ *          caller mistakenly incremented the refcount of other pages in the block,
+ *          this function will still free the entire block to the buddy allocator,
+ *          resulting in memory leaks or corruption. Callers MUST ensure all pages
+ *          in the block are released together as an atomic unit, never separately.
+ *          This is modified after Linux 2.6.18, which introduced page->_count &
+ *          page->_mapcount and compound page support to track multi-page allocations.
+ */
 void __free_pages(struct page *page, unsigned int order)
 {
+    /** 
+	 * @note Checks if page is reserved and decrements refcount; only frees to buddy if 
+     * PG_reserved flag is equal to 0 and count reaches zero
+     */
 	if (!PageReserved(page) && put_page_testzero(page))
 		__free_pages_ok(page, order);
 }
 
+/**
+ * @brief Free 2^order pages and return them to the buddy allocator, given a virtual address.
+ * @param addr Virtual (linear) address of the pages to free
+ * @param order Order of the block to free (0 = single page, 1 = two pages, etc.)
+ * @return void
+ * @note Simply converts virtual address to struct page via virt_to_page(), then calls __free_pages()
+ */
 void free_pages(unsigned long addr, unsigned int order)
 {
 	if (addr != 0)

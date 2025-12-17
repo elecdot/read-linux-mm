@@ -419,6 +419,12 @@ extern struct page * FASTCALL(_alloc_pages(unsigned int gfp_mask, unsigned int o
 extern struct page * FASTCALL(__alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_t *zonelist));
 extern struct page * alloc_pages_node(int nid, unsigned int gfp_mask, unsigned int order);
 
+/**
+ * @brief Allocate 2^order contiguous pages and return a struct page pointer (or NULL).
+ * @param gfp_mask Allocation flags (GFP_*)
+ * @param order Power of two pages to allocate
+ * @return struct page* Pointer to the first page structure, or NULL on failure
+ */
 static inline struct page * alloc_pages(unsigned int gfp_mask, unsigned int order)
 {
 	/*
@@ -429,14 +435,32 @@ static inline struct page * alloc_pages(unsigned int gfp_mask, unsigned int orde
 	return _alloc_pages(gfp_mask, order);
 }
 
+/**
+ * @brief Allocate a single page and return a struct page pointer.
+ * @param gfp_mask Allocation flags
+ * @return struct page* Pointer to the page structure, or NULL on failure
+ * @note Simply a wrapper around alloc_pages() with order 0.
+ */
 #define alloc_page(gfp_mask) alloc_pages(gfp_mask, 0)
 
 extern unsigned long FASTCALL(__get_free_pages(unsigned int gfp_mask, unsigned int order));
 extern unsigned long FASTCALL(get_zeroed_page(unsigned int gfp_mask));
 
+/**
+ * @brief Allocate a single page and return its virtual address.
+ * @param gfp_mask Allocation flags
+ * @return unsigned long Virtual address of the allocated page, or 0 on failure
+ * @note Simply a wrapper around __get_free_pages() with order 0.
+ */
 #define __get_free_page(gfp_mask) \
 		__get_free_pages((gfp_mask),0)
 
+/**
+ * @brief Allocate 2^order pages from the DMA zone.
+ * @param gfp_mask Allocation flags
+ * @param order Power of two pages to allocate
+ * @return unsigned long Virtual address of the allocated area, or 0 on failure
+ */
 #define __get_dma_pages(gfp_mask, order) \
 		__get_free_pages((gfp_mask) | GFP_DMA,(order))
 
@@ -448,10 +472,30 @@ extern unsigned long FASTCALL(get_zeroed_page(unsigned int gfp_mask));
 /*
  * There is only one 'core' page-freeing function.
  */
+/**
+ * @brief 这里使用FASTCALL调用约定以提高性能，同时保证同一调用序列。
+ */
 extern void FASTCALL(__free_pages(struct page *page, unsigned int order));
+
+/**
+ * @brief 这里使用FASTCALL调用约定以提高性能，同时保证同一调用序列。
+ */
 extern void FASTCALL(free_pages(unsigned long addr, unsigned int order));
 
+/**
+ * @brief Release a single page given its struct page pointer.
+ * @param page Pointer to the page structure to release
+ * @note Wrapper around __free_pages(page, 0)
+ * @note Simply a wrapper around __free_pages() with order 0.
+ */
 #define __free_page(page) __free_pages((page), 0)
+
+/**
+ * @brief Release a single page given its virtual address.
+ * @param addr Virtual address of the page to release
+ * @note Wrapper around free_pages(addr, 0)
+ * @note Simply a wrapper around free_pages() with order 0.
+ */
 #define free_page(addr) free_pages((addr),0)
 
 extern void show_free_areas(void);
@@ -585,7 +629,7 @@ extern struct page *filemap_nopage(struct vm_area_struct *, unsigned long, int);
  */
 /* Zone modifiers in GFP_ZONEMASK (see linux/mmzone.h - low four bits) */
 /**
- * @brief Get Free Page Flags, controling the memory zone selection and allocation behavior.
+ * @brief "zone modifiers" for page allocation
  * 
  * @ref zone-selection-gfp
  */

@@ -48,6 +48,7 @@ extern int console_printk[];
 # define NORET_AND     noreturn,
 
 #ifdef __i386__
+//! 在i386架构，使用 GCC 扩展属性指定前三个参数使用寄存器传递，换取性能
 #define FASTCALL(x)	x __attribute__((regparm(3)))
 #else
 #define FASTCALL(x)	x
