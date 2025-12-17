@@ -5,7 +5,7 @@ PROJECT_NAME = "Linux 2.4.18 MM"
 ## Directories and/or files that Doxygen will scan for source.
 ## You can specify multiple paths separated by spaces. Relative paths are
 ## evaluated from the location where doxygen is run.
-INPUT = mm/ include/linux/ ../00-concepts/ ../01-source-map ../02-callflows ../03-notebooks
+INPUT = mm/ include/linux/ include/asm-i386/ ../00-concepts/ ../01-source-map ../02-callflows ../03-notebooks
 
 ## File name patterns to include. Doxygen will only parse files that match
 ## these patterns (simple glob-style patterns). Add extensions if needed.
