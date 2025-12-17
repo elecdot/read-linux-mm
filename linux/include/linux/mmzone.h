@@ -96,21 +96,42 @@ typedef struct zonelist_struct {
  *      into the pg_data_t to properly support NUMA.
  */
 struct bootmem_data;
+/**
+ * @brief Each node in a NUMA system has a descriptor of pg_data_t. All
+ * node descriptors are stored in a singly linkded list starting from pgdat_list.
+ * The physical memory of each node is divided into several zones, each represented
+ * by a zone_t structure within the pg_data_t.
+ * 
+ * The time needed by a given CPU to access pages within a single node
+ * is the same.
+ */
 typedef struct pglist_data {
-	zone_t node_zones[MAX_NR_ZONES];
-	zonelist_t node_zonelists[GFP_ZONEMASK+1];
-	int nr_zones;
-	struct page *node_mem_map;
-	unsigned long *valid_addr_bitmap;
-	struct bootmem_data *bdata;
-	unsigned long node_start_paddr;
-	unsigned long node_start_mapnr;
-	unsigned long node_size;
-	int node_id;
-	struct pglist_data *node_next;
+	/* === Node Management === */
+	unsigned long node_start_paddr;             //! Physical address of the first page frame in this node.
+	unsigned long node_start_mapnr;             //! Index of the first page descriptor in the global mem_map (physical page descriptors) array for this node. @code page = &node->node_mem_map[(physical_address / PAGE_SIZE) - node->node_start_mapnr]; @endcode
+	int node_id;                                //! Unique identifier for this NUMA node.
+	struct pglist_data *node_next;              //! Pointer to the next node descriptor in the NUMA node list.
+
+	/* === Zone Management === */
+	zone_t node_zones[MAX_NR_ZONES]; 			//! Array of zone descriptors of this node.
+	zonelist_t node_zonelists[GFP_ZONEMASK+1];  //! Array of zonelist data structures used by the page allocator. @see "Memory Zones"
+	int nr_zones;                               //! Number of zones in this node.
+
+	/* === Page Management === */
+	struct page *node_mem_map;                  //! Pointer to the "Array" of page descriptors of this node.
+	unsigned long *valid_addr_bitmap;           //! Bitmap indicating valid physical address ranges in this node.
+
+	/* === Initialization === */
+	struct bootmem_data *bdata;                 //! Used in the kernel initialization phase to manage boot memory.
+
+	/*
+	 * There are missed field compared to Linux 2.6, e.g. `kswapd_awit`:
+	 * Wait queue for the kswapd pageout daemon @see section "Periodic Reclaiming"
+	 */
 } pg_data_t;
 
 extern int numnodes;
+//! __EXTERN__: NUMA系统中所有节点的pg_data_t结构体链表头指针.
 extern pg_data_t *pgdat_list;
 
 #define memclass(pgzone, classzone)	(((pgzone)->zone_pgdat == (classzone)->zone_pgdat) \
