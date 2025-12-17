@@ -37,6 +37,29 @@ Core MM variables（核心内存管理变量）是 Linux 内核内存管理子�
 
 ## Deep Dive
 
+### 0. Page/Zone/Node 三层关系
+
+```
+contig_page_data (单节点)
+  ├─ node_zones[MAX_NR_ZONES]
+  │   └─ zone_t (ZONE_DMA | ZONE_NORMAL | ZONE_HIGHMEM)
+  │       ├─ zone_pgdat ──→ 回指 contig_page_data
+  │       └─ zone_mem_map ──→ page[]
+  │           └─ page->zone ──→ 指向所属 zone
+  └─ node_mem_map ──→ 全局 page 数组
+```
+
+**关键链接**：
+- `page->zone`: page 知道自己的 zone（单向）
+- `zone->zone_pgdat`: zone 回指 node（双向）
+- `page→node` 必须通过 zone 中转（`page->zone->zone_pgdat`）
+- `zone/node` 都知道自己所在的pagelist起点
+
+**NOTE**:
+- page 尚未采用 reserved flags 的策略 point to zone & node.
+
+---
+
 ### 1. mem_map（物理页框数组）
 
 **作用**：内核对所有物理页框的"数据库"。
