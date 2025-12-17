@@ -607,6 +607,11 @@ int try_to_free_pages(zone_t *classzone, unsigned int gfp_mask, unsigned int ord
 
 DECLARE_WAIT_QUEUE_HEAD(kswapd_wait);
 
+/**
+ * @brief Check if the classzone and all zones below it still need memory balancing.
+ * Scans from the given classzone down to the lowest zone, returning 1 if any zone
+ * still has free_pages <= pages_high (memory pressure), or 0 if all zones are healthy.
+ */
 static int check_classzone_need_balance(zone_t * classzone)
 {
 	zone_t * first_classzone;
@@ -629,6 +634,7 @@ static int kswapd_balance_pgdat(pg_data_t * pgdat)
 		zone = pgdat->node_zones + i;
 		if (unlikely(current->need_resched))
 			schedule();
+		/** Skip zones that don't have memory pressure (need_balance flag not set) */
 		if (!zone->need_balance)
 			continue;
 		if (!try_to_free_pages(zone, GFP_KSWAPD, 0)) {
@@ -637,6 +643,11 @@ static int kswapd_balance_pgdat(pg_data_t * pgdat)
 			schedule_timeout(HZ);
 			continue;
 		}
+		/**
+		 * After successful page reclamation, check if the zone and lower zones
+		 * have returned to healthy levels (free_pages > pages_high). If so, clear
+		 * the need_balance flag; otherwise, mark for another reclamation pass.
+		 */
 		if (check_classzone_need_balance(zone))
 			need_more_balance = 1;
 		else

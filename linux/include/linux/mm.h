@@ -214,7 +214,8 @@ typedef struct page {
 	void *virtual;			/* Kernel virtual address (NULL if
 					   not kmapped, ie. highmem) */
 	/**	 指向该页框所属的内存区域(zone).
-	 * @note 在Linux2.4引入的字段, 用于实现区(zone)为单位的Buddy系统内存管理.
+	 * @note Linux 2.4 引入, 支持 zone-based buddy allocator.
+	 * @note page→zone→node: 页通过 zone 间接访问节点.
 	 */
 	struct zone_struct *zone;	/* Memory zone we are in. */
 } mem_map_t;

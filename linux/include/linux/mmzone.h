@@ -33,33 +33,53 @@ struct pglist_data;
  * ZONE_NORMAL	16-896 MB	direct mapped by the kernel
  * ZONE_HIGHMEM	 > 896 MB	only page cache and user processes
  */
+/**
+ * @brief Zone descriptor. Manages watchdog watermarks and free areas for buddy system page allocation.
+ * 
+ * Linux kernel must deal with two hardware constraints of the 80x86 architecture:
+ * 1. DMA (Direct Memory Access) capable (for old ISA-based devices) memory below 16MB. @see dma
+ * 2. In modern 32-bit systems, not all physical memory (up to 4GB) can be directly mapped
+ *    into the kernel's virtual address space due to address space limitations.
+ * 
+ * - ZONE_DMA + ZONE_NORMAL -> directly accessed by the kernel through the linear mapping
+ * in the fourth GB of the linear address space. @see temp-note.
+ * - ZONE_HIGHMEM -> conversely. Only page cache and user processes. @ref highmem_kernel_mapping
+ * 
+ * @note Many fields of the zone structure are used for page allocation and reclamation. @see Chapter 17
+ */
 typedef struct zone_struct {
 	/*
 	 * Commonly accessed fields:
 	 */
-	spinlock_t		lock;
-	unsigned long		free_pages;
-	unsigned long		pages_min, pages_low, pages_high;
-	int			need_balance;
+	spinlock_t		lock;                   //! Spinlock to protect zone's data structures during concurrent access.
+	unsigned long		free_pages;    		//! Number of free pages in this zone.
+	unsigned long		pages_min;          //! Number of reserved pages of the zone @ref reserved_page_pool
+	unsigned long		pages_low;          //! Low watermark of page frame reclaiming; also used by the zone allocator as a threshold value @ref zone_allocator
+	unsigned long		pages_high;         //! High watermark of page frame reclaiming; same as `pages_low`, @ref zone_allocator
+	
+	int			need_balance;               //! A needs writeback flag for the kswapd daemon to indicate if this zone needs balancing.
 
 	/*
 	 * free areas of different sizes
 	 */
-	free_area_t		free_area[MAX_ORDER];
+	free_area_t		free_area[MAX_ORDER];   //! @ref buddy-system free area lists for different orders.
 
 	/*
 	 * Discontig memory support fields.
 	 */
-	struct pglist_data	*zone_pgdat;
-	struct page		*zone_mem_map;
-	unsigned long		zone_start_paddr;
-	unsigned long		zone_start_mapnr;
+	struct pglist_data	*zone_pgdat;      //! Back pointer to the pglist_data (node) that owns this zone (contig_page_data, of course).
+	struct page		*zone_mem_map;        //! Pointer to the page descriptor array for all page frames in this zone.
+	unsigned long		zone_start_paddr;  //! Starting physical address (the real physical memory address) of this zone.
+	unsigned long		zone_start_mapnr;  //! Starting index/offset in the global mem_map array; used to map page frames to descriptors in this zone.
 
 	/*
 	 * rarely used fields:
 	 */
-	char			*name;
-	unsigned long		size;
+	char			*name;                //! Zone name for debugging purposes, e.g., "DMA", "Normal", "HighMem".
+	unsigned long		size;             //! Total number of page frames in this zone.
+	/**
+	 * @warning Lost a bunch of fields here in comparison to Linux 2.6.
+	 */
 } zone_t;
 
 #define ZONE_DMA		0
@@ -77,11 +97,28 @@ typedef struct zone_struct {
  * modify it apart from boot-up, and only a few indices are used,
  * so despite the zonelist table being relatively big, the cache
  * footprint of this construct is very small.
+ * 缓存效率的设计保证：
+ * - 只存指针不存数据: 32位系统16字节，64位系统32字节，都远小于缓存行(64字节)
+ * - 启动后只读: 运行时只查询不修改，避免缓存失效
+ * - NULL终止数组: 虽然有MAX_NR_ZONES+1个位置，但实际只用几个，内存占用固定且小
+ * 结果：整个zonelist可在一次缓存命中时加载，加快内存分配时的zone优先级查询
+ */
+/**
+ * @brief Zonelist indicating the priority order of zones for page allocation.
+ * First zone is the preferred one; others are fallbacks in decreasing priority.
+ * 
+ * fallback hierarchy: ZONE_NORMAL -> ZONE_DMA:
+ * - ZONE_DMA Preservation for devices needing DMA-capable memory.
+ * - Watermark-based allocation: allocator tries higher zones first, falling back to lower ones if needed.
+ * - Pressure Signaling: kswapd daemon uses zonelists to determine zones need balancing.
+ *
+ * @ref zone-selection-gfp
  */
 typedef struct zonelist_struct {
 	zone_t * zones [MAX_NR_ZONES+1]; // NULL delimited
 } zonelist_t;
 
+//! Low four bits of GFP mask used to select memory zones. @ref zone-selection-gfp
 #define GFP_ZONEMASK	0x0f
 
 /*
@@ -114,7 +151,7 @@ typedef struct pglist_data {
 
 	/* === Zone Management === */
 	zone_t node_zones[MAX_NR_ZONES]; 			//! Array of zone descriptors of this node.
-	zonelist_t node_zonelists[GFP_ZONEMASK+1];  //! Array of zonelist data structures used by the page allocator. @see "Memory Zones"
+	zonelist_t node_zonelists[GFP_ZONEMASK+1];  //! Array of zonelist data structures used by the page allocator. @ref zone-selection-gfp
 	int nr_zones;                               //! Number of zones in this node.
 
 	/* === Page Management === */

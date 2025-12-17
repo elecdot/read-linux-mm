@@ -357,6 +357,11 @@ static struct page * balance_classzone(zone_t * classzone, unsigned int gfp_mask
 /*
  * This is the 'heart' of the zoned buddy allocator:
  */
+/**
+ * @brief
+ * 
+ * @param zonelist 
+ */
 struct page * __alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_t *zonelist)
 {
 	unsigned long min;
@@ -380,6 +385,10 @@ struct page * __alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_
 		}
 	}
 
+	/**
+	 * Allocation failed across all zones. Signal kswapd to perform page reclamation
+	 * by setting the need_balance flag on the classzone, which indicates memory pressure.
+	 */
 	classzone->need_balance = 1;
 	mb();
 	if (waitqueue_active(&kswapd_wait))
