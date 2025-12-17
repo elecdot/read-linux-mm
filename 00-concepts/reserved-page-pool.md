@@ -24,7 +24,7 @@ sources:
 
 ## In a Word
 
-保留页池（Reserved Page Pool）是每个内存区域（zone）维护的一个页框缓冲机制，通过三个水位标记（`pages_min`、`pages_low`、`pages_high`）来控制内存分配的积极性，确保即使系统内存紧张时仍能保证关键子系统的内存需求，防止内核陷入无内存可用的死局。
+保留页池（Reserved Page Pool）是每个内存区域（zone）维护的一个页框缓冲机制，通过三个水位标记（`pages_min`、`pages_low`、`pages_high`）来控制内存分配的积极性，确保即使系统内存紧张时仍能保证关键子系统的内存需求，防止内核陷入无内存可用的死局。防止一些不允许被阻塞的内存申请 (即 `GFP_ATOMIC` 请求).
 
 ## Why This Concept
 
@@ -110,18 +110,31 @@ free_pages <= pages_min
 
 ### 初始化与动态调整
 
-#### 初始化时机
+#### 初始化时机（Linux 2.4.18 实现）
 
-在系统启动期间调用 `free_area_init_core()` 时，根据 zone 的大小计算初始水位：
+在系统启动期间调用 `free_area_init_core()` 时，根据 zone 的大小和 `zone_balance_ratio` 等参数计算初始水位。
+
+**实现方式**（基于 `mm/page_alloc.c`）：
 
 ```c
-/*
- * 伪代码示意
- */
-zone->pages_min = size / 256 + 1;      // ~0.4% 的 zone 大小
-zone->pages_low = zone->pages_min * 2;  // pages_min 的 2 倍
-zone->pages_high = zone->pages_min * 3; // pages_min 的 3 倍
+// zone_balance_ratio 数组定义了不同类型 zone 的平衡比例
+static int zone_balance_ratio[MAX_NR_ZONES] = { 32, 32, 8 };
+static int zone_balance_min[MAX_NR_ZONES] = { 10, 10, 10 };
+static int zone_balance_max[MAX_NR_ZONES] = { 255, 255, 255 };
+
+// 初始化时的计算方式
+mask = (realsize / zone_balance_ratio[j]);
+if (mask < zone_balance_min[j])
+    mask = zone_balance_min[j];
+else if (mask > zone_balance_max[j])
+    mask = zone_balance_max[j];
+
+zone->pages_min = mask;              // 设置最小值
+zone->pages_low = mask * 2;          // 低水位为最小值的 2 倍
+zone->pages_high = mask * 3;         // 高水位为最小值的 3 倍
 ```
+
+这意味着水位值依赖于 zone 的实际大小（`realsize`）和比例参数，而非简单的固定百分比。
 
 #### 动态调整
 
@@ -207,3 +220,28 @@ if (free_pages > pages_min) {
 - [Zone-based Memory Management](zone-based-memory-management.md)：区域划分和分配策略
 - [Page Flags & State Management](page-flags.md)：页面标志与 `PG_reserved` 区别
 - [Core Memory Management Variables](mm-core-variables.md)：全局内存统计变量
+
+## Historical Notes：2.4.18 版本特性
+
+### 为什么没有 `min_free_kbytes`？
+
+Linux 2.4.18 版本中，**不存在 `min_free_kbytes` sysctl 参数**。这个接口是在更后期的内核版本（约 2.5/2.6 之后）才引入的。
+
+**2.4.18 的设计**：
+- 水位参数在**编译时**通过 `zone_balance_ratio` 等数组硬编码
+- 初始化阶段根据实际 zone 大小动态计算
+- 不支持运行时通过 `/proc` 或 `sysctl` 调整
+
+**后期内核的改进**（2.5+ 版本）：
+- 引入 `/proc/sys/vm/min_free_kbytes` 参数
+- 允许系统管理员在运行时动态调整保留页池大小
+- 提供更细粒度的内存压力控制
+
+### 版本兼容性提示
+
+本文档描述的所有行为都**严格基于 Linux 2.4.18**。在阅读更新版本的内核代码时，会发现：
+- 水位计算机制已改变
+- 存在 `min_free_kbytes` 等运行时可调参数
+- 内存回收策略可能有新的优化
+
+若在学习更新版本内核时感到困惑，请查阅对应版本的文档。

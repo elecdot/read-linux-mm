@@ -584,6 +584,11 @@ extern struct page *filemap_nopage(struct vm_area_struct *, unsigned long, int);
  * GFP bitmasks..
  */
 /* Zone modifiers in GFP_ZONEMASK (see linux/mmzone.h - low four bits) */
+/**
+ * @brief Get Free Page Flags, controling the memory zone selection and allocation behavior.
+ * 
+ * @ref zone-selection-gfp
+ */
 #define __GFP_DMA	0x01
 #define __GFP_HIGHMEM	0x02
 
@@ -597,6 +602,11 @@ extern struct page *filemap_nopage(struct vm_area_struct *, unsigned long, int);
 #define GFP_NOHIGHIO	(__GFP_HIGH | __GFP_WAIT | __GFP_IO)
 #define GFP_NOIO	(__GFP_HIGH | __GFP_WAIT)
 #define GFP_NOFS	(__GFP_HIGH | __GFP_WAIT | __GFP_IO | __GFP_HIGHIO)
+/** 
+ * An atomic request never blocks, they simply fails if memory is not immediately available
+ * @note Used in some kernel control paths cannot be blocked while requesting memorys,
+ * interrupt handlers, bottom halves, tasklets, etc.
+ */
 #define GFP_ATOMIC	(__GFP_HIGH)
 #define GFP_USER	(             __GFP_WAIT | __GFP_IO | __GFP_HIGHIO | __GFP_FS)
 #define GFP_HIGHUSER	(             __GFP_WAIT | __GFP_IO | __GFP_HIGHIO | __GFP_FS | __GFP_HIGHMEM)
