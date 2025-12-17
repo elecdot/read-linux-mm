@@ -18,10 +18,6 @@
 #define MAX_ORDER CONFIG_FORCE_MAX_ZONEORDER
 #endif
 
-/**
- * @brief Structure representing a free area in the buddy system.
- * @ref buddy-system
- */
 typedef struct free_area_struct {
 	struct list_head	free_list;
 	unsigned long		*map;
@@ -46,10 +42,10 @@ struct pglist_data;
  *    into the kernel's virtual address space due to address space limitations.
  * 
  * - ZONE_DMA + ZONE_NORMAL -> directly accessed by the kernel through the linear mapping
- * in the fourth GB of the linear address space.
+ * in the fourth GB of the linear address space. @see temp-note.
  * - ZONE_HIGHMEM -> conversely. Only page cache and user processes. @ref highmem_kernel_mapping
  * 
- * @note Many fields of the zone structure are used for page allocation and reclamation.
+ * @note Many fields of the zone structure are used for page allocation and reclamation. @see Chapter reclaim
  * @ref zone-based-memory-management
  */
 typedef struct zone_struct {
