@@ -1,5 +1,7 @@
 ---
 related:
+- "[Temporary Kernel Mappings (kmap_atomic)](temporary-kernel-mappings.md)"
+- "[Fix-Mapped Linear Addresses](fix-mapped-linear-addresses.md)"
 - "[Permanent Kernel Mappings (kmap)](permanent-kernel-mappings.md)"
 - "[Zoned Page Frame Allocator](zoned-page-frame-allocator.md)"
 - "[Zone-Based Memory Management](zone-based-memory-management.md)"

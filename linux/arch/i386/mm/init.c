@@ -72,12 +72,20 @@ int do_check_pgt_cache(int low, int high)
  */
 
 #if CONFIG_HIGHMEM
+/** @brief Pointer to the first PTE in the FIXMAP region used for kmap_atomic (@ref temporary-kernel-mappings) */
 pte_t *kmap_pte;
+/** @brief Default page protection flags for kmap_atomic mappings (@ref temporary-kernel-mappings) */
 pgprot_t kmap_prot;
 
 #define kmap_get_fixmap_pte(vaddr)					\
 	pte_offset(pmd_offset(pgd_offset_k(vaddr), (vaddr)), (vaddr))
 
+/**
+ * @brief Initialize the kmap_atomic subsystem
+ *
+ * Caches the PTE pointer for the FIXMAP region to speed up atomic mappings.
+ * @see @ref temporary-kernel-mappings
+ */
 void __init kmap_init(void)
 {
 	unsigned long kmap_vstart;
@@ -156,6 +164,13 @@ static inline void set_pte_phys (unsigned long vaddr,
 	__flush_tlb_one(vaddr);
 }
 
+/**
+ * @brief Low-level function to set a fixmap entry
+ * @param idx The fixmap index to map
+ * @param phys The physical address to map to
+ * @param flags Page protection flags
+ * @see @ref fix-mapped-linear-addresses
+ */
 void __set_fixmap (enum fixed_addresses idx, unsigned long phys, pgprot_t flags)
 {
 	unsigned long address = __fix_to_virt(idx);

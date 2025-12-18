@@ -331,6 +331,16 @@ void __init kmap_init(void) {
 }
 ```
 
+## TLB 刷新策略：延迟批处理 (Lazy Flushing)
+
+`kmap` 的一个核心优化是其 TLB 刷新策略。与 `kmap_atomic` 的即时刷新不同，`kmap` 采用了“延迟批处理”：
+
+1.  **kunmap 不刷新**：调用 `kunmap(page)` 时，内核仅减少 `pkmap_count`。即使计数降为 1（表示映射已空闲），内核也**不会**立即清除 PTE 或刷新 TLB。
+2.  **缓存效应**：如果同一个页很快再次被 `kmap`，内核会发现它仍在 `PKMAP` 中且 `page->virtual` 依然有效，从而直接返回地址，避免了修改页表和刷新 TLB 的开销。
+3.  **全满时刷新**：只有当 `PKMAP` 区域的所有槽位都已分配（即找不到计数为 0 的槽位）时，才会触发 `flush_all_zero_pkmaps()`。该函数会一次性清除所有计数为 1 的 PTE，并执行一次全局 TLB 刷新 (`flush_tlb_all`)。
+
+这种设计将 1024 次可能的 TLB 刷新操作合并为一次，极大地提升了在进程上下文中频繁访问高端内存的性能。
+
 ## 总结 (Summary)
 
 | 特点 | 说明 |

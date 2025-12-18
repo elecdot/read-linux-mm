@@ -47,6 +47,13 @@
  * future, say framebuffers for the console driver(s) could be
  * fix-mapped?
  */
+/**
+ * @brief Compile-time fixed virtual addresses
+ *
+ * This enumeration defines indices for special virtual addresses that are
+ * fixed at compile time but mapped to physical addresses at runtime.
+ * @see @ref fix-mapped-linear-addresses
+ */
 enum fixed_addresses {
 #ifdef CONFIG_X86_LOCAL_APIC
 	FIX_APIC_BASE,	/* local (CPU) APIC) -- required for SMP or not */
@@ -62,6 +69,10 @@ enum fixed_addresses {
 	FIX_LI_PCIB,	/* Lithium PCI Bridge B */
 #endif
 #ifdef CONFIG_HIGHMEM
+    /** @brief There are KM_TYPE_NR fix-mapped linear addresses for each CPU in the system.
+	 *         Furthermore, the kernel initializes the kmap_pte variable with the address of the
+	 *         Page Table entry conrresponding to the `fix_to_virt(FIX_KMAP_BEGIN)` linear address.
+	 */
 	FIX_KMAP_BEGIN,	/* reserved pte's for temporary kernel mappings */
 	FIX_KMAP_END = FIX_KMAP_BEGIN+(KM_TYPE_NR*NR_CPUS)-1,
 #endif
@@ -71,10 +82,16 @@ enum fixed_addresses {
 extern void __set_fixmap (enum fixed_addresses idx,
 					unsigned long phys, pgprot_t flags);
 
+/** @brief Map a physical address to a fixed virtual address index
+ *  @see @ref fix-mapped-linear-addresses
+ */
 #define set_fixmap(idx, phys) \
 		__set_fixmap(idx, phys, PAGE_KERNEL)
 /*
  * Some hardware wants to get fixmapped without caching.
+ */
+/** @brief Map a physical address to a fixed virtual address index without caching
+ *  @see @ref fix-mapped-linear-addresses
  */
 #define set_fixmap_nocache(idx, phys) \
 		__set_fixmap(idx, phys, PAGE_KERNEL_NOCACHE)
@@ -85,10 +102,14 @@ extern void __set_fixmap (enum fixed_addresses idx,
  * the start of the fixmap, and leave one page empty
  * at the top of mem..
  */
+/** @brief Top of the fixmap address space (@ref fix-mapped-linear-addresses) */
 #define FIXADDR_TOP	(0xffffe000UL)
+/** @brief Total size of the fixmap area (@ref fix-mapped-linear-addresses) */
 #define FIXADDR_SIZE	(__end_of_fixed_addresses << PAGE_SHIFT)
+/** @brief Start address of the fixmap area (@ref fix-mapped-linear-addresses) */
 #define FIXADDR_START	(FIXADDR_TOP - FIXADDR_SIZE)
 
+/** @brief Convert a fixmap index to its virtual address (@ref fix-mapped-linear-addresses) */
 #define __fix_to_virt(x)	(FIXADDR_TOP - ((x) << PAGE_SHIFT))
 
 extern void __this_fixmap_does_not_exist(void);
@@ -97,6 +118,12 @@ extern void __this_fixmap_does_not_exist(void);
  * 'index to address' translation. If anyone tries to use the idx
  * directly without tranlation, we catch the bug with a NULL-deference
  * kernel oops. Illegal ranges of incoming indices are caught too.
+ */
+/**
+ * @brief Safe conversion of fixmap index to virtual address with range checking
+ * @param idx The fixmap index to convert
+ * @return The corresponding virtual address
+ * @see @ref fix-mapped-linear-addresses
  */
 static inline unsigned long fix_to_virt(const unsigned int idx)
 {

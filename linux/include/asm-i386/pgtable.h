@@ -81,6 +81,10 @@ extern unsigned long pgkern_mask;
 	} while (0)
 #endif
 
+/**
+ * @brief Flush a single TLB entry
+ * @param addr The virtual address to flush from the TLB
+ */
 #ifndef CONFIG_X86_INVLPG
 #define __flush_tlb_one(addr) __flush_tlb()
 #else

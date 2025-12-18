@@ -103,7 +103,8 @@ extern void smp_store_cpu_info(int id);		/* Store per CPU info (like the initial
  * from the initial startup. We map APIC_BASE very early in page_setup(),
  * so this is correct in the x86 case.
  */
-
+/** @brief Return current processor id.
+ */
 #define smp_processor_id() (current->processor)
 
 static __inline int hard_smp_processor_id(void)

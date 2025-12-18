@@ -133,6 +133,14 @@ static inline void kunmap(struct page *page)
  * be used in IRQ contexts, so in some (very limited) cases we need
  * it.
  */
+/**
+ * @brief Establish a temporary atomic kernel mapping for a page
+ * @param page The page to map
+ * @param type The slot type (km_type) to use for this CPU
+ * @return The virtual address of the mapping
+ * @note This function is atomic and can be used in interrupt context.
+ * @see @ref temporary-kernel-mappings
+ */
 static inline void *kmap_atomic(struct page *page, enum km_type type)
 {
 	enum fixed_addresses idx;
@@ -141,18 +149,30 @@ static inline void *kmap_atomic(struct page *page, enum km_type type)
 	if (page < highmem_start_page)
 		return page_address(page);
 
+    //! 1. Retrieved though `smp_processor_id()` to specify what fix-mapped linear address has to be used to map the request page.
+	//! i.e., which macro slot defined in km_type enum to use for this CPU
 	idx = type + KM_TYPE_NR*smp_processor_id();
-	vaddr = __fix_to_virt(FIX_KMAP_BEGIN + idx);
+	vaddr = __fix_to_virt(FIX_KMAP_BEGIN + idx);  //!< 2. Retrieve virtual address for the fixmap index
 #if HIGHMEM_DEBUG
 	if (!pte_none(*(kmap_pte-idx)))
 		BUG();
 #endif
-	set_pte(kmap_pte-idx, mk_pte(page, kmap_prot));
-	__flush_tlb_one(vaddr);
+	set_pte(kmap_pte-idx, mk_pte(page, kmap_prot)); //!< 3. Set the page table entry for the mapping @see `kmap()`, the bits Present, Accessed+Read+Write+Dirty
+	// @see `flush_all_zero_pkmaps()`： `kmap()在map_new_virtual时` 若无法满足时才会调用刷新函数
+	// 同时，由于这里是原子映射，必然需要刷新。@see `kunmap_atomic()`：释放时不会做任何事，还有拿到旧的PTE的风险
+	__flush_tlb_one(vaddr);                         //!< 4. Flush TLB entry for the new mapping
 
 	return (void*) vaddr;
 }
 
+/**
+ * @brief Destroy a temporary atomic kernel mapping
+ * @param kvaddr The virtual address to unmap
+ * @param type The slot type used during mapping
+ * @see @ref temporary-kernel-mappings
+ * @warning Seems this function would be factored out after Linux 2.6.
+ *          Include decrease `preempt_count` and TIF_NEED_RESCHED check.
+ */
 static inline void kunmap_atomic(void *kvaddr, enum km_type type)
 {
 #if HIGHMEM_DEBUG

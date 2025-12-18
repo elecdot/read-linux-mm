@@ -736,7 +736,7 @@ static inline void build_zonelists(pg_data_t *pgdat)
  *   - clear the memory bitmaps
  */
 /**
- * __TODO__(gzh): MM initialization function for setting up memory zones and page structures.
+ * @brief MM initialization function for setting up memory zones and page structures.
  * 
  * @param nid Node id (NUMA node index) for which zones are initialized.
  * @param pgdat Pointer to the node's `pg_data_t` structure (node descriptor).
