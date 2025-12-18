@@ -350,23 +350,52 @@ struct page *_alloc_pages(unsigned int gfp_mask, unsigned int order)
 #endif
 
 static struct page * FASTCALL(balance_classzone(zone_t *, unsigned int, unsigned int, int *));
+/** @brief 同步页面回收与区域平衡
+ *
+ * 当快速路径和异步回收（kswapd）都无法满足分配需求时，当前进程会调用此函数亲自进行页面回收：
+ * 1. 约束检查：仅允许可睡眠的请求（__GFP_WAIT）调用，且不能在中断上下文中执行。
+ * 2. 权限提升：设置 PF_MEMALLOC 和 PF_FREE_PAGES 标志，允许进程在回收过程中动用紧急预留内存，
+ *    并将回收的页面暂时存放在进程私有的 local_pages 链表中。
+ * 3. 执行回收：调用 try_to_free_pages() 尝试从指定的 classzone 及其备用区域中释放页面。
+ * 4. 提取页面：
+ *    - 检查进程的 local_pages 链表。
+ *    - 如果链表中有符合请求 order 且属于目标区域（memclass）的页面，则提取该页面作为分配结果。
+ * 5. 清理现场：
+ *    - 将 local_pages 中剩余的所有页面通过 __free_pages_ok() 还给全局伙伴系统。
+ *    - 清除 PF_MEMALLOC 等标志，恢复进程正常状态。
+ *
+ * @param classzone 内存压力最大的首选区域。
+ * @param gfp_mask  分配标志，决定了回收的紧迫程度和限制。
+ * @param order     原始请求的分配阶数。
+ * @param freed     输出参数，返回 try_to_free_pages() 实际释放的页面数量。
+ * @return struct page* 如果在回收过程中直接获得了符合要求的页面，则返回该页指针；否则返回 NULL。
+ * @note 该函数是“直接回收”（Direct Reclaim）机制的核心实现。
+ */
 static struct page * balance_classzone(zone_t * classzone, unsigned int gfp_mask, unsigned int order, int * freed)
 {
 	struct page * page = NULL;
 	int __freed = 0;
 
+    // 1. 约束检查：如果是不允许等待（原子分配）的请求，请不起你这尊大佛，直接退出。
 	if (!(gfp_mask & __GFP_WAIT))
 		goto out;
+    // 2. 严禁在中断中调用，因为回收过程可能涉及磁盘 I/O，会导致睡眠。
 	if (in_interrupt())
 		BUG();
 
 	current->allocation_order = order;
+    // 3. 壮丁权限提升：
+    // PF_MEMALLOC: 允许进程动用最后的紧急预留内存（忽略水位线）。
+    // PF_FREE_PAGES: 告诉 __free_pages_ok，回收的页面先放到我私有的 local_pages 链表里，别直接给全局。
 	current->flags |= PF_MEMALLOC | PF_FREE_PAGES;
 
+    // 4. 核心回收动作：调用 try_to_free_pages 尝试释放页面。
 	__freed = try_to_free_pages(classzone, gfp_mask, order);
 
+    // 5. 恢复标志：回收结束，关掉特权。
 	current->flags &= ~(PF_MEMALLOC | PF_FREE_PAGES);
 
+    // 6. 检查私有“战利品”（这时候因为 PF_FREE_PAGES 标志，回收的页面先放到了 local_pages 链表中）：
 	if (current->nr_local_pages) {
 		struct list_head * entry, * local_pages;
 		struct page * tmp;
@@ -374,16 +403,18 @@ static struct page * balance_classzone(zone_t * classzone, unsigned int gfp_mask
 
 		local_pages = &current->local_pages;
 
-		if (likely(__freed)) {
-			/* pick from the last inserted so we're lifo */
-			entry = local_pages->next;
-			do {
-				tmp = list_entry(entry, struct page, list);
-				if (tmp->index == order && memclass(tmp->zone, classzone)) {
-					list_del(entry);
-					current->nr_local_pages--;
-					set_page_count(tmp, 1);
-					page = tmp;
+        // 如果确实释放出了页面（__freed > 0）
+        if (likely(__freed)) {
+            /* 采用 LIFO（后进先出）原则，从链表头部开始找，这样缓存命中率更高 */
+            entry = local_pages->next;
+            do {
+                tmp = list_entry(entry, struct page, list);
+                // 寻找阶数（order）匹配且属于目标区域（classzone）的页面
+                if (tmp->index == order && memclass(tmp->zone, classzone)) {
+                    list_del(entry);
+                    current->nr_local_pages--;
+                    set_page_count(tmp, 1); // 拿走这页，引用计数设为 1
+                    page = tmp;             // 这就是我们要返回给 __alloc_pages 的页
 
 					if (page->buffers)
 						BUG();
@@ -402,41 +433,58 @@ static struct page * balance_classzone(zone_t * classzone, unsigned int gfp_mask
 					if (PageDirty(page))
 						BUG();
 
-					break;
+					break; // 分配成功了（找到了一个），跳出循环
 				}
 			} while ((entry = entry->next) != local_pages);
 		}
 
-		nr_pages = current->nr_local_pages;
-		/* free in reverse order so that the global order will be lifo */
-		while ((entry = local_pages->prev) != local_pages) {
-			list_del(entry);
-			tmp = list_entry(entry, struct page, list);
-			__free_pages_ok(tmp, tmp->index);
-			if (!nr_pages--)
-				BUG();
-		}
-		current->nr_local_pages = 0;
+        // 7. 清理现场：
+        // 刚才回收了一堆页，但我可能只需要其中一个。剩下的必须还给系统。
+        nr_pages = current->nr_local_pages;
+        /* 逆序释放，保证全局空闲链表也是 LIFO 顺序 */
+        while ((entry = local_pages->prev) != local_pages) {
+            list_del(entry);
+            tmp = list_entry(entry, struct page, list);
+            __free_pages_ok(tmp, tmp->index); // 真正放回全局伙伴系统
+            if (!nr_pages--)
+                BUG();
+        }
+        current->nr_local_pages = 0;
 	}
  out:
-	*freed = __freed;
-	return page;
+    *freed = __freed; // 告诉调用者一共释放了多少页
+    return page;      // 返回找到的那一页（如果有的话）
 }
 
 /*
  * This is the 'heart' of the zoned buddy allocator:
  */
 /**
- * @brief High-level entry point for page frame allocation.
- * 
- * This function implements the core logic of the zoned buddy allocator. It iterates through
- * the provided @p zonelist and attempts to allocate a block of pages of the requested @p order.
- * If initial allocation fails, it triggers kswapd and may perform direct reclamation.
- * 
- * @param gfp_mask Allocation flags (e.g., GFP_KERNEL, GFP_ATOMIC).
- * @param order    The order of the allocation (2^order pages).
- * @param zonelist The list of zones to try for allocation, in priority order.
- * @return struct page* Pointer to the first page of the allocated block, or NULL if failed.
+/** @brief 物理页框分配的高层入口函数
+ *
+ * 该函数实现了分区伙伴分配器（Zoned Buddy Allocator）的核心逻辑：
+ * 1. 快速路径（Fast Path）：遍历 @p zonelist，尝试使用 pages_low 水位进行分配, 逻辑上像这样：
+ * @code
+ * for (i = 0; (z=zonelist->zones[i]) != NULL; i++) { 
+ *     if (zone_watermark_ok(z, order, ...)) {  // 检查水位, 确保分配后不低于 pages_low， 不是有空就拿
+ *         page = rmqueue(z, order);
+ *         if (page) return page;
+ *     }
+ * }
+ * @endcode
+ * 2. 如果分配失败，唤醒 kswapd 守护进程进行异步页面回收
+ * 3. 第二次尝试：再次遍历 zonelist，尝试使用 pages_min 水位（对于非阻塞请求甚至更低）
+ * 4. 慢速路径（Slow Path）：如果仍然失败且 @p gfp_mask 允许等待：
+ *    - 调用 balance_classzone() 进行直接页面回收（Direct Reclaim）
+ *    - 回收后再次尝试使用 pages_min 水位分配
+ *    - 对于小阶数请求（order <= 3），让出 CPU 并循环重试
+ * 5. 紧急分配：如果进程设置了 PF_MEMALLOC 或 PF_MEMDIE 标志，则忽略水位限制尝试分配
+ *
+ * @param gfp_mask 分配标志（如 GFP_KERNEL, GFP_ATOMIC）
+ * @param order    分配阶数（2^order 个页框）
+ * @param zonelist 允许尝试分配的区域列表，按优先级排序
+ * @return struct page* 指向分配的第一个页框的指针，失败则返回 NULL
+ * @note 这是分区分配器（Zone Allocator）的核心。@ref the-zone-allocator
  */
 struct page * __alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_t *zonelist)
 {
@@ -445,31 +493,39 @@ struct page * __alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_
 	struct page * page;
 	int freed;
 
-	zone = zonelist->zones;
-	classzone = *zone;
-	min = 1UL << order;
+	zone = zonelist->zones; // 这里拿到了指向最高优先级的zone指针数组.
+	classzone = *zone;      // 记录首选区域（通常是列表中的第一个）。
+	min = 1UL << order;     // 计算本次请求需要的页框数量 (2^order)
+	// 首次尝试：在不唤醒回收进程的情况下，寻找一个内存充足（高于 pages_low 水位）的区域。
 	for (;;) {
-		zone_t *z = *(zone++);
+		zone_t *z = *(zone++); // 一个个遍历优先级zone（这里直接更新指向了下一个zone）
+		// 找到头了没找到，fastpath 不成功
 		if (!z)
 			break;
 
-		min += z->pages_low;
-		if (z->free_pages > min) {
-			page = rmqueue(z, order);
+		min += z->pages_low;          // 计算当前zone的最低水位要求. (即最低水位加上本次请求的页数)
+		if (z->free_pages > min) {    // 如果当前zone的空闲页数高于最低水位要求
+			page = rmqueue(z, order); // 调用 buddy system rmqueue方法分配页框
 			if (page)
 				return page;
 		}
 	}
 
-	/**
+	/*
 	 * Allocation failed across all zones. Signal kswapd to perform page reclamation
 	 * by setting the need_balance flag on the classzone, which indicates memory pressure.
+	 * 把 need_balance 置1，表示内存紧张，需要通知 daemon kswapd 来帮忙回收内存.
 	 */
 	classzone->need_balance = 1;
+	/* @brief 内存屏障：确保 need_balance 的修改在检查等待队列前对其他 CPU 可见 
+	 * 防止了由于 CPU 指令重排导致的竞争条件（即 kswapd 还没看到需要平衡的信号就又睡过去了）。
+	 */
 	mb();
 	if (waitqueue_active(&kswapd_wait))
-		wake_up_interruptible(&kswapd_wait);
+		wake_up_interruptible(&kswapd_wait); // 唤醒 kswapd 守护进程，异步回收页面
 
+    //! 代码复制方法：与上面类似，但这次尝试使用更低的水位，即 pages_min 水位进行分配。
+	//! 并且对于原子分配（不允许睡眠的请求），进一步降低水位要求（除以4），允许动用紧急预留 @see reserved_page_pool。
 	zone = zonelist->zones;
 	min = 1UL << order;
 	for (;;) {
@@ -478,9 +534,9 @@ struct page * __alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_
 		if (!z)
 			break;
 
-		local_min = z->pages_min;
-		if (!(gfp_mask & __GFP_WAIT))
-			local_min >>= 2;
+        local_min = z->pages_min;     // 使用更严格的最小水位线
+        if (!(gfp_mask & __GFP_WAIT)) // 如果是不允许睡眠的原子分配（如中断中）
+            local_min >>= 2;          // 进一步降低水位要求（除以4），允许动用紧急预留
 		min += local_min;
 		if (z->free_pages > min) {
 			page = rmqueue(z, order);
@@ -489,9 +545,11 @@ struct page * __alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_
 		}
 	}
 
-	/* here we're in the low on memory slow path */
+	/** here we're in the low on memory slow path */
 
 rebalance:
+    // 进程设置了 PF_MEMALLOC 或 PF_MEMDIE 标志，表示允许紧急分配内存，即使低于水位限制.
+	// 即检查当前进程是不是可能是 ”内存分配器(MEMALLOC)“(回收进程本身) 或 ”正在死亡(MEMDIE)“(OOM Killer 选中的进程).
 	if (current->flags & (PF_MEMALLOC | PF_MEMDIE)) {
 		zone = zonelist->zones;
 		for (;;) {
@@ -499,7 +557,7 @@ rebalance:
 			if (!z)
 				break;
 
-			page = rmqueue(z, order);
+			page = rmqueue(z, order); //! 直接豁免水位，进行”最后的“的分配
 			if (page)
 				return page;
 		}
@@ -507,13 +565,18 @@ rebalance:
 	}
 
 	/* Atomic allocations - we can't balance anything */
+	// 这里表示如果分配标志不允许等待（如 GFP_ATOMIC），则直接返回 NULL，放弃分配.
+	//! 这里不允许睡眠的请求彻底失败
 	if (!(gfp_mask & __GFP_WAIT))
 		return NULL;
 
+    // 准备调用 balance_classzone 进行同步直接页面回收（Direct Reclaim）。（由调用者进程自己主动发起回收）
+	//！当内核发现内存实在不够用，且异步的 kswapd 还没来得及释放出足够空间时，申请内存的进程就会被“抓壮丁”，亲自去释放页面。
 	page = balance_classzone(classzone, gfp_mask, order, &freed);
 	if (page)
-		return page;
+		return page; // 回收成功，直接返回分配的页框.
 
+	// 回收了一波，但还是没分配到，尝试再用 pages_min 水位分配一次.
 	zone = zonelist->zones;
 	min = 1UL << order;
 	for (;;) {
@@ -530,10 +593,12 @@ rebalance:
 	}
 
 	/* Don't let big-order allocations loop */
+	// 保护机制：对于大阶数的分配请求（order > 3），不进行循环死心眼重试，直接返回 NULL。
 	if (order > 3)
 		return NULL;
 
 	/* Yield for kswapd, and try again */
+    // 让出 CPU，给 kswapd 时间回收内存，然后跳回 rebalance 重试
 	current->policy |= SCHED_YIELD;
 	__set_current_state(TASK_RUNNING);
 	schedule();

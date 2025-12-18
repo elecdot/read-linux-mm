@@ -558,6 +558,21 @@ static void refill_inactive(int nr_pages)
 }
 
 static int FASTCALL(shrink_caches(zone_t * classzone, int priority, unsigned int gfp_mask, int nr_pages));
+/** @brief 综合收缩各类内核缓存
+ *
+ * 该函数是页面回收过程中的核心步骤，它按顺序尝试从不同类型的缓存中释放内存：
+ * 1. Slab 缓存回收：调用 kmem_cache_reap() 释放未使用的 slab 对象。
+ * 2. 补充不活跃链表：调用 refill_inactive() 将页面从活跃链表转移到不活跃链表，
+ *    以维持活跃/不活跃页面的比例（通常活跃占 2/3）。
+ * 3. 页面缓存回收：调用 shrink_cache() 从不活跃链表中真正释放页面。
+ * 4. VFS 缓存回收：收缩目录项（dcache）、索引节点（icache）以及配额（dqcache）缓存。
+ *
+ * @param classzone 目标内存区域。
+ * @param priority  回收优先级（影响扫描强度）。
+ * @param gfp_mask  分配标志，决定回收时的限制（如是否允许 I/O）。
+ * @param nr_pages  期望释放的页面数量。
+ * @return int 剩余尚未释放的页面目标数量。如果 <= 0 表示已完成目标。
+ */
 static int shrink_caches(zone_t * classzone, int priority, unsigned int gfp_mask, int nr_pages)
 {
 	int chunk_size = nr_pages;
@@ -585,22 +600,43 @@ static int shrink_caches(zone_t * classzone, int priority, unsigned int gfp_mask
 	return nr_pages;
 }
 
+/** @brief Linux内存回收机制最终执行官 (被blance_classzone和kswapd调用)
+ *
+ * 这是直接页面回收（Direct Reclaim）和 kswapd 回收的核心入口函数：
+ * 1. 优先级循环：从默认优先级（DEF_PRIORITY）开始，逐渐增加回收力度（减小 priority 值）。
+ * 2. 缓存收缩：在每个优先级水平上调用 shrink_caches()，尝试从页面缓存（Page Cache）和
+ *    各种内核缓存（如 slab, dcache, icache）中释放页面。
+ * 3. 成功判定：如果 shrink_caches() 成功释放了足够的页面（nr_pages <= 0），则立即返回成功。
+ * 4. 最终手段：如果遍历完所有优先级仍无法释放足够内存，则调用 out_of_memory() 触发 OOM Killer，
+ *    通过杀死某个进程来释放内存。
+ *
+ * @param classzone 内存压力最大的首选区域。
+ * @param gfp_mask  分配标志，影响回收行为（如是否允许文件 I/O）。
+ * @param order     原始请求的分配阶数（在 2.4 中主要用于记录，不直接决定回收数量）。
+ * @return int 成功释放页面返回 1，彻底失败（触发 OOM）返回 0。
+ * @note 该函数会阻塞当前进程，直到回收完成或触发 OOM。
+ */
 int try_to_free_pages(zone_t *classzone, unsigned int gfp_mask, unsigned int order)
 {
-	int priority = DEF_PRIORITY;
-	int nr_pages = SWAP_CLUSTER_MAX;
+    int priority = DEF_PRIORITY; // 初始优先级（通常是 6）
+    int nr_pages = SWAP_CLUSTER_MAX; // 目标回收数量（通常是 32 页）
 
-	gfp_mask = pf_gfp_mask(gfp_mask);
-	do {
-		nr_pages = shrink_caches(classzone, priority, gfp_mask, nr_pages);
-		if (nr_pages <= 0)
-			return 1;
-	} while (--priority);
+    gfp_mask = pf_gfp_mask(gfp_mask);
+    do {
+        // 核心动作：收缩各种缓存（Page Cache, Slab, VFS Caches 等）
+        // 优先级越低（数值越小），扫描的力度就越大
+        nr_pages = shrink_caches(classzone, priority, gfp_mask, nr_pages);
+        
+        // 如果 nr_pages 降到 0 或以下，说明已经凑够了 32 页，大功告成
+        if (nr_pages <= 0)
+            return 1;
+    } while (--priority); // 逐渐加大力度，直到 priority 降为 0
 
 	/*
 	 * Hmm.. Cache shrink failed - time to kill something?
 	 * Mhwahahhaha! This is the part I really like. Giggle.
 	 */
+	//! 终极手段：触发 OOM Killer
 	out_of_memory();
 	return 0;
 }

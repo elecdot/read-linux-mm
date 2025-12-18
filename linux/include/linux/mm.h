@@ -663,6 +663,15 @@ extern struct page *filemap_nopage(struct vm_area_struct *, unsigned long, int);
 
 #define GFP_DMA		__GFP_DMA
 
+/** @brief 根据当前进程上下文调整分配标志, 规范化手段。
+ *
+ * 该函数检查当前进程的标志位，并根据需要屏蔽掉某些分配行为：
+ * - 如果进程设置了 PF_NOIO 标志（例如在块设备驱动或文件系统 I/O 路径中），
+ *   则必须禁止在分配/回收过程中再次触发 I/O 或文件系统操作，以防止死锁。
+ *
+ * @param gfp_mask 原始分配标志。
+ * @return unsigned int 调整后的分配标志。
+ */
 static inline unsigned int pf_gfp_mask(unsigned int gfp_mask)
 {
 	/* avoid all memory balancing I/O methods if this task cannot block on I/O */
