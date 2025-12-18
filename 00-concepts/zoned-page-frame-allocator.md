@@ -1,5 +1,6 @@
 ---
 related:
+- "[The Zone Allocator](the-zone-allocator.md)"
 - "[Zone Selection Strategy](zone-selection-gfp.md)"
 - "[Buddy System](buddy-system.md)"
 - "[Zone-Based Memory Management](zone-based-memory-management.md)"

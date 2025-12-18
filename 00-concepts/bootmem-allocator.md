@@ -143,5 +143,5 @@ free_all_bootmem() ──→ 扫描、回收、卸载 bootmem
 ## Related Concepts
 
 - **Page Frame**：bootmem 的最小管理单位。
-- **Zone Allocator**：bootmem 初始化完毕后接管内存的主要分配器。
-- **Buddy System**：zone allocator 的核心实现机制。
+- **[Zone Allocator](the-zone-allocator.md)**：bootmem 初始化完毕后接管内存的主要分配器。
+- **[Buddy System](buddy-system.md)**：zone allocator 的核心实现机制。

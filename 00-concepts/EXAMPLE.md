@@ -1,6 +1,6 @@
 ---
 related:
-- "[Zone Allocator](../00-concepts/EXAMPLE.md)"
+- "[Zone Allocator](the-zone-allocator.md)"
 tags:
 - memory-management
 - physical-memory

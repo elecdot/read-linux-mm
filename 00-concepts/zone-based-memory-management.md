@@ -1,5 +1,6 @@
 ---
 related:
+- "[The Zone Allocator](the-zone-allocator.md)"
 - "[The Zoned Page Frame Allocator](zoned-page-frame-allocator.md)"
 - "[Buddy System](buddy-system.md)"
 - "[Zone Selection Strategy](zone-selection-gfp.md)"
