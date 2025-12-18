@@ -93,16 +93,23 @@ static int zone_balance_max[MAX_NR_ZONES] __initdata = { 255 , 255, 255, };
 
 static void FASTCALL(__free_pages_ok (struct page *page, unsigned int order));
 
-/**
- * @brief Free a block of pages and return it to the buddy allocator.
- * @ref buddy-system
+/** @brief 释放页框块并返回伙伴系统
  *
- * @param page Pointer to the first struct page of the block to free.
- * @param order Order of the block to free (0 = single page, 1 = two pages,
- *              etc.).
+ * 该函数是物理页框释放的核心实现，负责将不再使用的页框归还给分区伙伴分配器：
+ * 1. 状态校验：检查页面标志位，确保页面未被锁定、无缓冲区关联、无内存映射且不在 LRU 链表中。
+ * 2. 本地拦截（优化）：如果当前进程设置了 PF_FREE_PAGES 标志，则不立即归还全局，
+ *    而是将页面挂载到进程私有的 local_pages 链表上（常用于直接回收路径）。
+ * 3. 伙伴合并（Buddy Merging）：
+ *    - 计算页面在区域内的索引及伙伴块索引。
+ *    - 循环检查伙伴块是否也处于空闲状态（通过位图标记判断）。
+ *    - 如果伙伴空闲，则将其从当前阶的空闲链表中移除，合并成更高阶的块并继续向上递归。
+ * 4. 归还全局：将最终合并完成的块插入对应 Zone 的 free_area 链表头部，并增加区域的空闲页计数。
+ *
+ * @param page  指向要释放的页框块中第一个页描述符的指针。
+ * @param order 释放块的阶数（2^order 个页框）。
  * @return void
- *
- * @note The caller must have dropped the page's reference count to zero
+ * @note 调用者必须确保页面的引用计数已降为 0。@see __free_pages
+ *       The caller must have dropped the page's reference count to zero
  *       (so the page is no longer in use). Typically callers invoke
  *       @c put_page_testzero (or similar) before calling this routine.
  *       This function may place pages on the per-task local freelist
@@ -121,10 +128,12 @@ static void __free_pages_ok (struct page *page, unsigned int order)
 	/* Yes, think what happens when other parts of the kernel take 
 	 * a reference to a page in order to pin it for io. -ben
 	 */
-	// 如果页面还在 LRU 中，先移除 @see lru
+	// 如果页面还在 LRU 中，先移除，保证页面“完全脱离内存管理” @see lru
 	if (PageLRU(page))
 		lru_cache_del(page);
 
+    // 一系列严苛的检查：如果页面还有缓冲区、有映射、被锁定、或者还在活跃链表里，
+    // 说明调用者还没处理干净就想释放，这在内核里是致命错误，直接 BUG()。
 	if (page->buffers)
 		BUG();
 	if (page->mapping)
@@ -139,7 +148,7 @@ static void __free_pages_ok (struct page *page, unsigned int order)
 		BUG();
 	if (PageActive(page))
 		BUG();
-	// 清除 referenced 和 dirty 标志，以防止页面被错误地认为是脏页或被引用过.
+	// 清除 referenced 和 dirty 标志，重置该页面状态.
 	page->flags &= ~((1<<PG_referenced) | (1<<PG_dirty));
 
 	/** 
@@ -147,13 +156,13 @@ static void __free_pages_ok (struct page *page, unsigned int order)
 	 * 即释放到自己的本地列表，只有自己清楚这个page被释放了，而不是直接放回全局空闲列表。
 	 * 这样可以减少对全局锁的争用，提高释放效率，提高缓存局部性。 否则，直接返回全局空闲列表。
 	 * @see `balance_classzone()`: 对于那些没被复用的页面，进程在退出回收逻辑前，必须把它们还给系统。
-	 * (依然是调用`__free_pages_ok`, 前提`current->flags &= ~(PF_MEMALLOC | PF_FREE_PAGES); // 清除“正在回收”的标记`)
+	 * (在该进程拿完自己的page后，又执行一次`__free_pages_ok`, 前提`current->flags &= ~(PF_MEMALLOC | PF_FREE_PAGES); // 清除“正在回收”的标记`)
 	 */
 	if (current->flags & PF_FREE_PAGES)
 		goto local_freelist;
  back_local_freelist:
 
-	zone = page->zone;
+	zone = page->zone; 			 // 获取页面所属的内存区域(zone).
 
 	/*
 	 * mask = ...11111100 (以order=2为例)

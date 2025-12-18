@@ -23,7 +23,7 @@ This page introduces:
 
 ## In a Word
 
-分区分配器（Zone Allocator）是 **Linux 物理内存分配的顶层接口**。它将物理内存划分为不同的管理区域（Zones），并根据分配请求的标志（GFP flags）和各区域的空闲水位（Watermarks），决定从哪个区域调用伙伴系统来获取物理页框。
+分区分配器（Zone Allocator）是 **Linux 物理内存分配与释放的顶层接口**。它将物理内存划分为不同的管理区域（Zones），并根据分配请求的标志（GFP flags）和各区域的空闲水位（Watermarks），决定从哪个区域调用伙伴系统来获取或归还物理页框。
 正如在 [分区页框分配器](./zoned-page-frame-allocator.md) 中提到的：“对一组连续页框的所有请求最终都通过执行 `alloc_pages` 宏来处理。而这个宏最终会调用 `__alloc_pages()` 函数，它是分区分配器的核心。”
 
 ## Why This Concept
@@ -58,5 +58,12 @@ Zone Allocator 实际上是 **分区页框分配器（Zoned Page Frame Allocator
 3. 强硬尝试：动用预留内存（pages_min）。
 4. **亲自下场**：如果允许等待，自己去回收页面（balance_classzone）。
 5. 特权阶层：如果是回收进程本身或 OOM 受害者，无视规则直接拿。
+
+### 释放逻辑简述
+页框的释放主要通过核心实现 `__free_pages_ok` 完成：
+1.  **引用计数检查**：只有当页面的引用计数降为 0 且不是保留页时，才真正执行释放。
+2.  **本地拦截（优化）**：如果当前进程设置了 `PF_FREE_PAGES` 标志（通常发生在 `balance_classzone` 的直接回收过程中），释放的页框会被拦截并挂载到进程私有的 `local_pages` 链表上，用于“自给自足”，从而减少全局锁竞争。
+3.  **伙伴合并**：在 `__free_pages_ok` 中，分配器会检查相邻的伙伴块（Buddy）是否也空闲。如果是，则将其合并成更大的块，并递归向上合并，直到无法合并或达到最大阶数。
+4.  **归还全局**：合并后的块最终被放回对应 Zone 的伙伴系统空闲链表中，并更新该 Zone 的 `free_pages` 计数。
 
 有关详细的函数调用流程和代码分析，请参阅 [Zoned Page Frame Allocator](zoned-page-frame-allocator.md)。
