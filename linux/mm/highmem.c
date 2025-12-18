@@ -246,7 +246,7 @@ start:
  *
  * @param page High-memory page to map
  * @return Virtual address in PKMAP region; asserts that ref count >= 2 (for kmap caller + 1)
- * @note Cannot be called from interrupt context (may sleep waiting for free slots)
+ * @note Cannot be called from interrupt ("atomic") context (may sleep waiting for free slots)
  */
 void *kmap_high(struct page *page)
 {
@@ -285,7 +285,7 @@ void *kmap_high(struct page *page)
  * Wake up any processes sleeping on pkmap_map_wait (waiting for free slots).
  *
  * @param page High-memory page to unmap
- * @note Must be called from process context (cannot be called from interrupt)
+ * @note Must be called from process context (cannot be called from interrupt ("atomic") context)
  * @note After this call, the page's virtual address may be reassigned to another page
  */
 void kunmap_high(struct page *page)
