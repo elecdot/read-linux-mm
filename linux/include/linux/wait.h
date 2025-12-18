@@ -179,6 +179,14 @@ static inline void init_waitqueue_entry(wait_queue_t *q, struct task_struct *p)
 #endif
 }
 
+/** @brief Check if there are any tasks waiting in the queue
+ *
+ * Test whether the wait queue head has any tasks currently sleeping on it.
+ * Used for optimization: avoid calling wake_up() if no one is waiting.
+ *
+ * @param q Wait queue head to check
+ * @return Non-zero if the queue is not empty (has waiting tasks), 0 otherwise
+ */
 static inline int waitqueue_active(wait_queue_head_t *q)
 {
 #if WAITQUEUE_DEBUG

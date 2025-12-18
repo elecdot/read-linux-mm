@@ -39,6 +39,13 @@ static inline int pgd_present(pgd_t pgd)	{ return 1; }
  * within a page table are directly modified.  Thus, the following
  * hook is made available.
  */
+
+/** @brief Write a PTE entry value into a page table slot in memory
+ * @param pteptr Address of the page table entry to write (pointer to pte_t)
+ * @param pteval The PTE value to install (typically created via mk_pte())
+ * @note This is the actual write operation; the PTE becomes visible to the MMU after this.
+ *       On systems with TLB, a TLB flush may be needed to invalidate stale translations.
+ */
 #define set_pte(pteptr, pteval) (*(pteptr) = pteval)
 /*
  * (pmds are folded into pgds so this doesnt get actually called,

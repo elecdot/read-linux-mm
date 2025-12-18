@@ -267,10 +267,20 @@ extern unsigned long pg0[1024];
  * Permanent address of a page. Obviously must never be
  * called on a highmem page.
  */
-/**
- * @brief Get the virtual address of a page
+/** @brief Get the kernel virtual address of a page
+ *
+ * Returns the virtual address stored in page->virtual field:
+ * - For low-memory pages (ZONE_NORMAL/ZONE_DMA): Returns the direct mapping address
+ * - For high-memory pages (ZONE_HIGHMEM):
+ *   - Returns the address from kmap() if the page is currently mapped
+ *   - Returns NULL if the page is not currently mapped
+ *
+ * @param page Pointer to struct page descriptor
+ * @return Kernel virtual address, or NULL for unmapped high-memory pages
+ * @warning Only use for low-memory pages or for high-memory pages that are currently kmap'd
  * 
- * @warning Only valid for non-highmem pages
+ * @warning This would be refactored after Linux 2.6 to use the page_address() function,
+ *          which is introduced with `page_address_htable` for highmem support.
  */
 #define page_address(page) ((page)->virtual)
 #define pages_to_mb(x) ((x) >> (20-PAGE_SHIFT))
@@ -306,6 +316,12 @@ static inline void ptep_mkdirty(pte_t *ptep)			{ set_bit(_PAGE_BIT_DIRTY, ptep);
  * and a page entry and page directory to the page they refer to.
  */
 
+/** @brief Create a PTE entry descriptor from a page structure and protection bits
+ * @param page Pointer to struct page for the physical page
+ * @param pgprot Page protection flags (e.g., PAGE_KERNEL with RW, dirty, accessed bits)
+ * @return PTE entry value that encodes the physical page frame and permissions
+ * @note This macro does NOT write to page table memory; use set_pte() to install the entry
+ */
 #define mk_pte(page, pgprot)	__mk_pte((page) - mem_map, (pgprot))
 
 /* This takes a physical page address that is used by the remapping functions */

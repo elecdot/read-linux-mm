@@ -37,6 +37,12 @@ extern unsigned long highstart_pfn, highend_pfn;
 
 extern pte_t *kmap_pte;
 extern pgprot_t kmap_prot;
+/** @brief Pointer to the PKMAP page table (PTE array)
+ * 
+ * Points to the first page table entry (PTE) in the PKMAP region.
+ * Dynamically modified to map high-memory pages to virtual addresses in PKMAP.
+ * Used by kmap()/kunmap() to establish virtual→physical mappings.
+ */
 extern pte_t *pkmap_page_table;
 
 extern void kmap_init(void) __init;
@@ -46,28 +52,72 @@ extern void kmap_init(void) __init;
  * easily, subsequent pte tables have to be allocated in one physical
  * chunk of RAM.
  */
+/** @brief Starting virtual address of the PKMAP (Page Kernel MAPping) region
+ *
+ * PKMAP is a 2-4MB dynamic mapping area in kernel address space used by kmap()
+ * to temporarily map high-memory page frames to virtual addresses.
+ */
 #define PKMAP_BASE (0xfe000000UL)
 #ifdef CONFIG_X86_PAE
+/** @brief Maximum number of simultaneous permanent kernel mappings
+ *
+ * With PAE (Physical Address Extension): 512 slots = 2MB PKMAP region
+ * Each slot maps one 4KB page frame.
+ */
 #define LAST_PKMAP 512
 #else
+/** @brief Maximum number of simultaneous permanent kernel mappings (non-PAE)
+ *
+ * Without PAE: 1024 slots = 4MB PKMAP region
+ */
 #define LAST_PKMAP 1024
 #endif
+
+/** @brief Bit mask for cycling through PKMAP slots (LAST_PKMAP - 1)
+ *
+ * Used in circular buffer logic: slot_nr = (slot_nr + 1) & LAST_PKMAP_MASK
+ */
 #define LAST_PKMAP_MASK (LAST_PKMAP-1)
+
+/** @brief Convert PKMAP virtual address to slot number
+ * @param virt Virtual address in PKMAP region
+ * @return Slot index (0 to LAST_PKMAP-1)
+ */
 #define PKMAP_NR(virt)  ((virt-PKMAP_BASE) >> PAGE_SHIFT)
+
+/** @brief Convert slot number to PKMAP virtual address
+ * @param nr Slot index (0 to LAST_PKMAP-1)
+ * @return Virtual address in PKMAP region
+ */
 #define PKMAP_ADDR(nr)  (PKMAP_BASE + ((nr) << PAGE_SHIFT))
 
 extern void * FASTCALL(kmap_high(struct page *page));
 extern void FASTCALL(kunmap_high(struct page *page));
 
+/**
+ * @brief Establish permanent kernel mapping for a page
+ * @param page Page to be mapped
+ * @return (void*) Kernel virtual address corresponding to the page
+ * @note 本质是一个调用 kmap_high() 的防御性编程, 确保：1. 非中断上下文调用 2. 低内存页直接返回地址
+ */
 static inline void *kmap(struct page *page)
 {
+	//! Use `kmap_atomic` in interrupt context (cannot sleep)
 	if (in_interrupt())
 		BUG();
+    //! IF page is lowmem, just return direct mapping address
 	if (page < highmem_start_page)
 		return page_address(page);
+    //! ELSE, process highmem page via kmap_high()
 	return kmap_high(page);
 }
 
+/**
+ * @brief Destroys a permanent kernel mapping established previously by kmap() (**Used by a process in pairs**)
+ * @param page Page to be unmapped
+ * @return void (side-effect only)
+ * @note 与kmap()相同，本质是一个调用 kunmap_high() 的防御性编程, 确保：1. 非中断上下文调用 2. 低内存页直接返回地址
+ */
 static inline void kunmap(struct page *page)
 {
 	if (in_interrupt())

@@ -30,6 +30,9 @@ static inline void bh_kunmap(struct buffer_head *bh)
 
 static inline unsigned int nr_free_highpages(void) { return 0; }
 
+/**
+ * @brief Generic kmap for lowmem pages @see include/asm-i386/highmem.h
+ */
 static inline void *kmap(struct page *page) { return page_address(page); }
 
 #define kunmap(page) do { } while (0)

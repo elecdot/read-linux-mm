@@ -1,5 +1,6 @@
 ---
 related:
+- "[Permanent Kernel Mappings (kmap)](permanent-kernel-mappings.md)"
 - "[Zoned Page Frame Allocator](zoned-page-frame-allocator.md)"
 - "[Zone-Based Memory Management](zone-based-memory-management.md)"
 - "[Page Descriptor (mem_map)](mm-core-variables.md)"
@@ -47,9 +48,9 @@ This page introduces:
             ├──────────────────────────┤
             │ VMALLOC (~120MB)         │ ← vmalloc (虚拟连续, 物理离散)
             ├──────────────────────────┤
-0xC080_0000 │ 直接映射区 (896MB)       │ ← ZONE_NORMAL / ZONE_DMA
+0xC080_0000 │ 直接映射区 (896MB)        │ ← ZONE_NORMAL / ZONE_DMA
             ├──────────────────────────┤
-0xC000_0000 │ 用户空间 (3GB)           │
+0xC000_0000 │ 用户空间 (3GB)            │
 0x0000_0000 └──────────────────────────┘
 ```
 
@@ -64,6 +65,11 @@ This page introduces:
 *   **API**: `void *kmap(struct page *page)` / `kunmap(page)`
 
 ### 2. 临时内核映射 (`kmap_atomic`)
+
+> A kernel control path that uses a temporary kernel mapping must ensure that no other kernel path is using the same mapping
+> -> The kernel control path can never block.
+> -> Use `kmap_atomic`
+
 *   **区域**: FIXMAP (Fixed Mapping).
 *   **大小**: 非常小，每个 CPU 有固定数量的槽位 (KM_TYPE_NR)。
 *   **行为**: **原子操作**，绝不睡眠。使用每 CPU 专用槽位。

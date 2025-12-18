@@ -137,9 +137,13 @@ static __inline__ void list_del_init(struct list_head *entry)
 	INIT_LIST_HEAD(entry); 
 }
 
-/**
- * list_empty - tests whether a list is empty
- * @head: the list to test.
+/** @brief Test whether a doubly-linked list is empty
+ *
+ * Checks if a list contains any elements by comparing the next pointer to itself.
+ * In an empty list, the head's next and prev pointers point to itself.
+ *
+ * @param head Pointer to the list_head to test
+ * @return Non-zero (true) if the list is empty, 0 (false) if it contains elements
  */
 static __inline__ int list_empty(struct list_head *head)
 {
