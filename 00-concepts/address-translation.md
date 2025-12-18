@@ -1,5 +1,6 @@
 ---
 related:
+- "[Memory Area Management](./memory-area-management.md)"
 - "[mm-core-variables](./mm-core-variables.md)"
 - "[zone-based-memory-management](./zone-based-memory-management.md)"
 tags:

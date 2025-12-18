@@ -1,5 +1,6 @@
 ---
 related:
+- "[Slab Allocator](./slab-allocator.md)"
 - "[The Zoned Page Frame Allocator](zoned-page-frame-allocator.md)"
 - "[Zone-Based Memory Management](zone-based-memory-management.md)"
 - "[Page Flags](page-flags.md)"

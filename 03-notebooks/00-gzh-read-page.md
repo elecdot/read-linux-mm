@@ -20,9 +20,3 @@ tags:
 ## Blockers
 
 - 笔记文件没有正确记录到doxyfile里
-
-## Next Steps
-
-- __TODO__: 读`free__area__init()`
-
-

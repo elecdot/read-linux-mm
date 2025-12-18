@@ -1,5 +1,6 @@
 ---
 related:
+- "[Memory Area Management](./memory-area-management.md)"
 - "[The Zoned Page Frame Allocator](zoned-page-frame-allocator.md)"
 - "[Bootmem Allocator](./bootmem-allocator.md)"
 - "[Zone-Based Memory Management](./zone-based-memory-management.md)"

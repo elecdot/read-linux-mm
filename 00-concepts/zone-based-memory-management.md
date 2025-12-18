@@ -1,5 +1,6 @@
 ---
 related:
+- "[Slab Allocator](./slab-allocator.md)"
 - "[The Zone Allocator](the-zone-allocator.md)"
 - "[The Zoned Page Frame Allocator](zoned-page-frame-allocator.md)"
 - "[Buddy System](buddy-system.md)"
