@@ -69,20 +69,24 @@ static int zone_balance_max[MAX_NR_ZONES] __initdata = { 255 , 255, 255, };
  */
 
 #define memlist_init(x) INIT_LIST_HEAD(x) // 初始化链表头. @see linux/include/linux/list.h
+//! 在链表头部添加一个节点.
 #define memlist_add_head list_add
 #define memlist_add_tail list_add_tail
+//! 从链表中删除一个节点.
 #define memlist_del list_del
+//! list_entry 是container_of的一个特化版本，用于从某个成员获取包含它的结构体指针.
 #define memlist_entry list_entry
 #define memlist_next(x) ((x)->next)
 #define memlist_prev(x) ((x)->prev)
 
 /*
  * Temporary debugging check.
+ * @brief Checks if a page descriptor belongs to the specified zone and is within its range.
  */
 #define BAD_RANGE(zone,x) (((zone) != (x)->zone) || (((x)-mem_map) < (zone)->zone_start_mapnr) || (((x)-mem_map) >= (zone)->zone_start_mapnr+(zone)->size))
 
 /*
- * Buddy system. Hairy. You really aren't expected to understand this
+ * __NOTE__: Buddy system. Hairy. You really aren't expected to understand this
  *
  * Hint: -mask = 1+~mask
  */
@@ -92,13 +96,6 @@ static void FASTCALL(__free_pages_ok (struct page *page, unsigned int order));
 /**
  * @brief Free a block of pages and return it to the buddy allocator.
  * @ref buddy-system
- *
- * @code This is just a example, you may want to change it @endcode
- * Frees the block of 2^order pages starting at @p page. The function
- * attempts to coalesce the block with its free buddy blocks up the
- * buddy tree, placing the resulting block onto the appropriate free
- * list. It updates zone accounting and performs several internal
- * consistency checks.
  *
  * @param page Pointer to the first struct page of the block to free.
  * @param order Order of the block to free (0 = single page, 1 = two pages,
@@ -113,8 +110,6 @@ static void FASTCALL(__free_pages_ok (struct page *page, unsigned int order));
  *       lists while holding the zone lock. It performs internal checks
  *       and will BUG() on serious inconsistencies (e.g. pages still
  *       mapped, locked, active, or part of the swap cache).
- * 
- * This is just a @ref example for using notes reference.
  */
 static void __free_pages_ok (struct page *page, unsigned int order)
 {
@@ -126,6 +121,7 @@ static void __free_pages_ok (struct page *page, unsigned int order)
 	/* Yes, think what happens when other parts of the kernel take 
 	 * a reference to a page in order to pin it for io. -ben
 	 */
+	// 如果页面还在 LRU 中，先移除 @see lru
 	if (PageLRU(page))
 		lru_cache_del(page);
 
@@ -143,32 +139,47 @@ static void __free_pages_ok (struct page *page, unsigned int order)
 		BUG();
 	if (PageActive(page))
 		BUG();
+	// 清除 referenced 和 dirty 标志，以防止页面被错误地认为是脏页或被引用过.
 	page->flags &= ~((1<<PG_referenced) | (1<<PG_dirty));
 
+	/** 
+	 * 这里如果进程设置了 PF_FREE_PAGES 标志，表示允许使用本地空闲页列表进行“慢路径”释放，
+	 * 即释放到自己的本地列表，只有自己清楚这个page被释放了，而不是直接放回全局空闲列表。
+	 * 这样可以减少对全局锁的争用，提高释放效率，提高缓存局部性。 否则，直接返回全局空闲列表。
+	 * @see `balance_classzone()`: 对于那些没被复用的页面，进程在退出回收逻辑前，必须把它们还给系统。
+	 * (依然是调用`__free_pages_ok`, 前提`current->flags &= ~(PF_MEMALLOC | PF_FREE_PAGES); // 清除“正在回收”的标记`)
+	 */
 	if (current->flags & PF_FREE_PAGES)
 		goto local_freelist;
  back_local_freelist:
 
 	zone = page->zone;
 
+	/*
+	 * mask = ...11111100 (以order=2为例)
+	 * 1. ~mask 用于检查对齐: page_idx & ~mask
+	 * 2. -mask 等于 1 << order, 用于计算块大小和定位伙伴: page_idx ^ -mask
+	 */
 	mask = (~0UL) << order;
 	base = zone->zone_mem_map;
-	page_idx = page - base;
+	page_idx = page - base;           // 计算页面在zone内的页索引.
 	if (page_idx & ~mask)
 		BUG();
-	index = page_idx >> (1 + order);
+	index = page_idx >> (1 + order);  // 计算页面在当前阶的位图中的索引.
 
-	area = zone->free_area + order;
+	area = zone->free_area + order;   // 获取对应阶的 free_area 结构体.
 
 	spin_lock_irqsave(&zone->lock, flags);
 
-	zone->free_pages -= mask;
+	zone->free_pages -= mask;         //! = zone->free_pages + (2^order) 增加空闲页计数.
 
+	// 直到达到了最大阶
 	while (mask + (1 << (MAX_ORDER-1))) {
 		struct page *buddy1, *buddy2;
 
 		if (area >= zone->free_area + MAX_ORDER)
 			BUG();
+		//! `test_and_set`: 翻转buddy map中的对应位，如果翻转后是1("相同状态", 即表示伙伴此时也空闲)，则继续合并.
 		if (!__test_and_change_bit(index, area->map))
 			/*
 			 * the buddy page is still allocated.
@@ -177,19 +188,22 @@ static void __free_pages_ok (struct page *page, unsigned int order)
 		/*
 		 * Move the buddy up one level.
 		 */
-		buddy1 = base + (page_idx ^ -mask);
+		buddy1 = base + (page_idx ^ -mask); //! 直接把 page_idx 的第 order 位取反就是伙伴页的索引. (还记得怎么写二进制吗?:)
 		buddy2 = base + page_idx;
 		if (BAD_RANGE(zone,buddy1))
 			BUG();
 		if (BAD_RANGE(zone,buddy2))
 			BUG();
 
+	    // 把伙伴从当前order的空闲链表中删除. (伙伴之前是空闲的,记得吗?)
 		memlist_del(&buddy1->list);
+		// 升 order 递归检查
 		mask <<= 1;
 		area++;
 		index >>= 1;
 		page_idx &= mask;
 	}
+	// 把合并后的大块放回对应order的空闲链表.
 	memlist_add_head(&(base + page_idx)->list, &area->free_list);
 
 	spin_unlock_irqrestore(&zone->lock, flags);
@@ -201,65 +215,114 @@ static void __free_pages_ok (struct page *page, unsigned int order)
 	if (in_interrupt())
 		goto back_local_freelist;		
 
-	list_add(&page->list, &current->local_pages);
-	page->index = order;
-	current->nr_local_pages++;
+    list_add(&page->list, &current->local_pages); // 挂到进程自己的链表上
+    page->index = order;                          // 记录阶数
+    current->nr_local_pages++;                    // 私有计数加1
 }
 
+/**
+ * @brief Toggles the bit in the buddy bitmap for a specific block.
+ * 
+ * In Linux 2.4, each bit in the `free_area->map` represents a pair of buddies.
+ * Toggling the bit indicates that one of the buddies has changed its state (allocated or freed).
+ * If the bit becomes 0 after toggling during a free operation, it means both buddies are now free
+ * and can be coalesced.
+ * 
+ * @param index The page index of the block.
+ * @param order The order of the block.
+ * @param area  Pointer to the free_area_t structure.
+ * 
+ * @note For example, if order=2 (4 pages), index(page)=12, 4th block node in free_area->free_list
+ *       then the buddy pair represented is pages 8-11 and 12-15. buddy 2, 3rd & 4th pages block. 
+ *       This pair corresponds to the 1st bit in the bitmap.
+ *       In this case, you toggle (XOR) bit 1 (1 = 12 >> (2 + 1))
+ */
 #define MARK_USED(index, order, area) \
 	__change_bit((index) >> (1+(order)), (area)->map)
 
+/**
+ * @brief Recursively splits a larger block into smaller buddies until the target order is reached.
+ * 
+ * @param zone  The memory zone.
+ * @param page  The starting page of the large block.
+ * @param index The page index of the block.
+ * @param low   The target order requested.
+ * @param high  The current order of the large block.
+ * @param area  The free_area_t corresponding to the 'high' order.
+ * @return struct page* The pointer to the allocated block of 'low' order.
+ */
 static inline struct page * expand (zone_t *zone, struct page *page,
 	 unsigned long index, int low, int high, free_area_t * area)
 {
-	unsigned long size = 1 << high;
+	unsigned long size = 1 << high; // 当前块的大小（页数）
 
+	//! 不断地将大块分左右，左边放回，右边继续拆，直到拆到目标order为止.
 	while (high > low) {
 		if (BAD_RANGE(zone,page))
 			BUG();
+		// order--
 		area--;
 		high--;
 		size >>= 1;
+        // 切左留右把拆下的buddy（左半边）放回对应order的空闲链表
 		memlist_add_head(&(page)->list, &(area)->free_list);
-		MARK_USED(index, high, area);
-		index += size;
-		page += size;
+		MARK_USED(index, high, area); // 改变状态
+		index += size;  // 留下右半边的页块
+		page += size;   // 同上
 	}
 	if (BAD_RANGE(zone,page))
 		BUG();
+    // 最终返回右边块的起始页指针.
 	return page;
 }
 
 static FASTCALL(struct page * rmqueue(zone_t *zone, unsigned int order));
+/**
+ * @brief Removes a block of pages from the zone's free lists.
+ * 
+ * This is the core allocation function of the buddy system. It searches for a free block
+ * starting from the requested order and moving up to MAX_ORDER. If a larger block is found,
+ * it is split using @see `expand()`.
+ * 
+ * @param zone  The zone to allocate from.
+ * @param order The requested order (2^order pages).
+ * @return struct page* Pointer to the first page of the allocated block, or NULL if failed.
+ */
 static struct page * rmqueue(zone_t *zone, unsigned int order)
 {
-	free_area_t * area = zone->free_area + order;
+	free_area_t * area = zone->free_area + order; // free_area[order]
 	unsigned int curr_order = order;
-	struct list_head *head, *curr;
-	unsigned long flags;
-	struct page *page;
+	struct list_head *head, *curr; // iterators
+	unsigned long flags; // spinlock flags
+	struct page *page;   // page to return
 
+	// `spin_lock_irqsave`在获取自旋锁的同时保存中断状态并禁用本地中断，防止死锁.
+	// 保护zone的free_area和free_pages等数据结构.
 	spin_lock_irqsave(&zone->lock, flags);
 	do {
 		head = &area->free_list;
-		curr = memlist_next(head);
+		curr = memlist_next(head); // curr = head->next
 
 		if (curr != head) {
+			// 如果在当前order的free_list但凡有一个空闲块，就分配它:
 			unsigned int index;
 
+			// 返回链表节点字段`struct list_head list` = `curr` 的 `struct page`的指针
+			// 因为这里是用一个非结构体的指针去获取结构体指针，所以用到了container_of的特化版本list_entry.
 			page = memlist_entry(curr, struct page, list);
-			if (BAD_RANGE(zone,page))
+			if (BAD_RANGE(zone,page)) // If page is not in zone range, BUG().
 				BUG();
-			memlist_del(curr);
-			index = page - zone->zone_mem_map;
-			if (curr_order != MAX_ORDER-1)
+			memlist_del(curr);        // 从空闲链表中删除该节点.
+			index = page - zone->zone_mem_map; // 计算page在zone内的页索引.
+			if (curr_order != MAX_ORDER-1)     // 如果不是最高阶, 更新位图.(最高阶不需要合并, 没有位图维护)
 				MARK_USED(index, curr_order, area);
-			zone->free_pages -= 1UL << order;
+			zone->free_pages -= 1UL << order;  // 分配了2^order个页框, 更新zone的空闲页计数.
 
+			//! 调用expand拆分大块为小块，直到达到请求的order. 注意这里 page 不是原始的page了.
 			page = expand(zone, page, index, order, curr_order, area);
 			spin_unlock_irqrestore(&zone->lock, flags);
 
-			set_page_count(page, 1);
+			set_page_count(page, 1); // __NOTE__: 设置page引用计数为1，表示已分配.
 			if (BAD_RANGE(zone,page))
 				BUG();
 			if (PageLRU(page))
@@ -268,11 +331,13 @@ static struct page * rmqueue(zone_t *zone, unsigned int order)
 				BUG();
 			return page;	
 		}
+		// 没有找到合适的块，尝试更高阶的块.
 		curr_order++;
-		area++;
+		area++; // area = zone->free_area[curr_order] 注意这里自增显然更快
 	} while (curr_order < MAX_ORDER);
 	spin_unlock_irqrestore(&zone->lock, flags);
 
+	// 没有找到合适的块，返回NULL. 这时候意味着需要进入慢路径处理了.
 	return NULL;
 }
 
@@ -362,9 +427,16 @@ static struct page * balance_classzone(zone_t * classzone, unsigned int gfp_mask
  * This is the 'heart' of the zoned buddy allocator:
  */
 /**
- * @brief
+ * @brief High-level entry point for page frame allocation.
  * 
- * @param zonelist 
+ * This function implements the core logic of the zoned buddy allocator. It iterates through
+ * the provided @p zonelist and attempts to allocate a block of pages of the requested @p order.
+ * If initial allocation fails, it triggers kswapd and may perform direct reclamation.
+ * 
+ * @param gfp_mask Allocation flags (e.g., GFP_KERNEL, GFP_ATOMIC).
+ * @param order    The order of the allocation (2^order pages).
+ * @param zonelist The list of zones to try for allocation, in priority order.
+ * @return struct page* Pointer to the first page of the allocated block, or NULL if failed.
  */
 struct page * __alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_t *zonelist)
 {
@@ -910,7 +982,7 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 
 			memlist_init(&zone->free_area[i].free_list);
 			if (i == MAX_ORDER-1) {
-				zone->free_area[i].map = NULL;
+				zone->free_area[i].map = NULL; //!< @note 可以看到最高阶甚至没有位图
 				break;
 			}
 

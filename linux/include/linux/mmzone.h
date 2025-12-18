@@ -12,15 +12,25 @@
  * Free memory management - zoned buddy allocator.
  */
 
+/**
+ * @brief Maximum order of the buddy system.
+ * 
+ * The buddy system manages blocks of pages in sizes of 2^0, 2^1, ..., 2^(MAX_ORDER-1).
+ * In Linux 2.4.18, MAX_ORDER is typically 10, meaning the largest block is 1024 pages (4MB).
+ */
 #ifndef CONFIG_FORCE_MAX_ZONEORDER
 #define MAX_ORDER 10
 #else
 #define MAX_ORDER CONFIG_FORCE_MAX_ZONEORDER
 #endif
 
+/**
+ * @brief Structure representing a free area of a specific order in the buddy system.
+ * @ref buddy-system
+ */
 typedef struct free_area_struct {
-	struct list_head	free_list;
-	unsigned long		*map;
+	struct list_head	free_list;   //!< Doubly linked list of free page blocks of this order.
+	unsigned long		*map;        //!< Bitmap used to track the status of buddy pairs. @see MARK_USED
 } free_area_t;
 
 struct pglist_data;
