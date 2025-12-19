@@ -138,6 +138,20 @@ extern void kmem_cache_free(kmem_cache_t *, void *);
     *   这种“贪婪但克制”的设计是为了保留一部分热点内存，防止系统出现频繁申请/释放页框的“抖动”现象。
 6.  **更新时钟**：将 `clock_searchp` 指向下一个待扫描的 Cache。
 
+#### E. 通用分配：`kmalloc`
+`kmalloc` 是内核中最常用的接口，它通过“桶 (Bucket)”机制简化了内存分配。
+1.  **桶机制 (`cache_sizes_t`)**：内核预先创建了一系列通用 Cache（如 32B, 64B, 128B ... 直至 128KB），存储在 `cache_sizes` 数组中。每个数组元素是一个 `cache_sizes_t` 结构，包含对象大小、普通 Cache 指针和 DMA Cache 指针。
+2.  **自动匹配**：`kmalloc` 接收请求大小 `size`，遍历 `cache_sizes` 找到第一个大于等于 `size` 的桶。
+3.  **DMA 支持**：如果设置了 `GFP_DMA` 标志，它会从该桶对应的 DMA Cache 中分配内存。
+4.  **底层调用**：最终调用 `__kmem_cache_alloc` 从选定的通用 Cache 中获取对象。
+
+#### F. 通用释放：`kfree`
+`kfree` 的精妙之处在于它不需要调用者提供 Cache 指针。
+1.  **反查 Cache**：
+    *   通过 `virt_to_page(objp)` 找到对象所在的页框描述符 (`struct page`)。
+    *   利用 `GET_PAGE_CACHE` 宏从页框描述符中提取出所属的 `kmem_cache_t` 指针（该指针在 `kmem_cache_grow` 时被存放在 `page->list` 中）。
+2.  **核心释放**：调用 `__kmem_cache_free` 将对象归还给查到的 Cache。
+
 ## See Also
 
 - [Slab Allocator](./slab-allocator.md)

@@ -378,13 +378,21 @@ static int slab_break_gfp_order = BREAK_GFP_ORDER_LO;
 #define	SET_PAGE_SLAB(pg,x)   ((pg)->list.prev = (struct list_head *)(x))
 #define	GET_PAGE_SLAB(pg)     ((slab_t *)(pg)->list.prev)
 
-/* Size description struct for general caches. */
+/**
+ * @ brief 通用内存
+ * 通用 Cache 的大小描述结构体。
+ * kmalloc 使用这些预定义的 Cache 来满足不同大小的内存分配请求。
+ */
 typedef struct cache_sizes {
-	size_t		 cs_size;
-	kmem_cache_t	*cs_cachep;
-	kmem_cache_t	*cs_dmacachep;
+	size_t		 cs_size;      /**< 该 Cache 对应的对象大小 */
+	kmem_cache_t	*cs_cachep;    /**< 指向普通（非 DMA）内存的 Cache 描述符 */
+	kmem_cache_t	*cs_dmacachep; /**< 指向支持 DMA 内存的 Cache 描述符 */
 } cache_sizes_t;
 
+/**
+ * 通用 Cache 的大小列表。
+ * 包含了从 32 字节（取决于页面大小）到 128KB 的各种常用大小。
+ */
 static cache_sizes_t cache_sizes[] = {
 #if PAGE_SIZE == 4096
 	{    32,	NULL, NULL},
@@ -499,22 +507,27 @@ void __init kmem_cache_init(void)
 /* Initialisation - setup remaining internal and general caches.
  * Called after the gfp() functions have been enabled, and before smp_init().
  */
+/**
+ * @brief 初始化通用 Cache (kmalloc 桶)
+ * 
+ * 该函数在系统启动早期调用，负责创建 cache_sizes 数组中定义的所有通用 Cache。
+ */
 void __init kmem_cache_sizes_init(void)
 {
 	cache_sizes_t *sizes = cache_sizes;
 	char name[20];
-	/*
-	 * Fragmentation resistance on low memory - only use bigger
-	 * page orders on machines with more than 32MB of memory.
+
+	/* 1. 碎片控制策略：
+	 * 只有在内存大于 32MB 的机器上才允许使用更高阶的 Slab (BREAK_GFP_ORDER_HI)。
 	 */
 	if (num_physpages > (32 << 20) >> PAGE_SHIFT)
 		slab_break_gfp_order = BREAK_GFP_ORDER_HI;
+	
+	/* 2. 循环创建所有尺寸的通用 Cache */
 	do {
-		/* For performance, all the general caches are L1 aligned.
-		 * This should be particularly beneficial on SMP boxes, as it
-		 * eliminates "false sharing".
-		 * Note for systems short on memory removing the alignment will
-		 * allow tighter packing of the smaller caches. */
+		/* 为性能考虑，所有通用 Cache 默认开启 L1 Cache 对齐 (SLAB_HWCACHE_ALIGN)，
+		 * 这能有效消除多核环境下的“伪共享 (False Sharing)”问题。
+		 */
 		sprintf(name,"size-%Zd",sizes->cs_size);
 		if (!(sizes->cs_cachep =
 			kmem_cache_create(name, sizes->cs_size,
@@ -522,11 +535,15 @@ void __init kmem_cache_sizes_init(void)
 			BUG();
 		}
 
-		/* Inc off-slab bufctl limit until the ceiling is hit. */
+		/* 3. 动态调整 Off-Slab 的限制
+		 * 随着对象尺寸变大，更新 offslab_limit。
+		 */
 		if (!(OFF_SLAB(sizes->cs_cachep))) {
 			offslab_limit = sizes->cs_size-sizeof(slab_t);
 			offslab_limit /= 2;
 		}
+
+		/* 4. 创建对应的 DMA 通用 Cache */
 		sprintf(name, "size-%Zd(DMA)",sizes->cs_size);
 		sizes->cs_dmacachep = kmem_cache_create(name, sizes->cs_size, 0,
 			      SLAB_CACHE_DMA|SLAB_HWCACHE_ALIGN, NULL, NULL);
@@ -1947,13 +1964,29 @@ void * kmem_cache_alloc (kmem_cache_t *cachep, int flags)
  * platforms.  For example, on i386, it means that the memory must come
  * from the first 16MB.
  */
+/**
+ * @brief 内核通用的内存分配函数
+ * 
+ * kmalloc 是内核中最常用的分配接口。它基于 Slab 分配器实现，
+ * 但不需要指定具体的 Cache，而是根据请求的大小自动选择一个最合适的通用 Cache。
+ * 
+ * @param size  请求分配的字节数。
+ * @param flags 分配标志 (如 GFP_KERNEL, GFP_ATOMIC, GFP_DMA)。
+ * @return void* 成功返回分配的内存首地址，失败返回 NULL。
+ */
 void * kmalloc (size_t size, int flags)
 {
 	cache_sizes_t *csizep = cache_sizes;
 
+	/* 1. 遍历通用 Cache 尺寸链表 (32B, 64B, ..., 128KB) */
 	for (; csizep->cs_size; csizep++) {
+		/* 2. 找到第一个大于等于请求大小的桶 (Bucket) */
 		if (size > csizep->cs_size)
 			continue;
+		
+		/* 3. 从对应的通用 Cache 中分配对象
+		 * 如果设置了 GFP_DMA，则从专门的 DMA Cache 中分配。
+		 */
 		return __kmem_cache_alloc(flags & GFP_DMA ?
 			 csizep->cs_dmacachep : csizep->cs_cachep, flags);
 	}
@@ -2007,6 +2040,14 @@ void kmem_cache_free (kmem_cache_t *cachep, void *objp)
  * Don't free memory not originally allocated by kmalloc()
  * or you will run into trouble.
  */
+/**
+ * @brief 释放由 kmalloc 分配的内存
+ * 
+ * 与 kmem_cache_free 不同，kfree 不需要传入 Cache 指针。
+ * 它通过对象地址反查其所属的 Cache。
+ * 
+ * @param objp 指向要释放的内存首地址。
+ */
 void kfree (const void *objp)
 {
 	kmem_cache_t *c;
@@ -2014,10 +2055,21 @@ void kfree (const void *objp)
 
 	if (!objp)
 		return;
+
+	/* 1. 屏蔽中断 */
 	local_irq_save(flags);
+
+	/* 2. 反查 Cache 指针
+	 * 利用 virt_to_page 找到对象所在的页框描述符 (struct page)。
+	 * 在 kmem_cache_grow 中，页框描述符的 list 字段的(next?)被巧妙地用来存储 Cache 指针。
+	 */
 	CHECK_PAGE(virt_to_page(objp));
 	c = GET_PAGE_CACHE(virt_to_page(objp));
+
+	/* 3. 调用核心释放函数 */
 	__kmem_cache_free(c, (void*)objp);
+
+	/* 4. 恢复中断 */
 	local_irq_restore(flags);
 }
 
