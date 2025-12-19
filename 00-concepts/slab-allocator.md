@@ -63,7 +63,7 @@ Slab 系统像一个三级金字塔，从上到下分别是：
 3. **L3: Buddy System (慢速)**：调用 `kmem_cache_grow`，向伙伴系统批发新的页框。
 
 ### 5. 核心管理技术
-- **缓存着色 (Cache Colouring)**：通过微调 Slab 起始偏移，让不同仓库的对象在 CPU L1 Cache 中均匀分布，避免硬件冲突。
+- **缓存着色 (Cache Colouring)**：通过微调 Slab 起始偏移，让不同仓库的对象在 CPU L1 Cache 中均匀分布，避免硬件冲突。详见 [对齐与着色](#11-对齐与着色-alignment--coloring)。
 - **空闲账本 (bufctl)**：使用“数组模拟链表”管理空闲对象，不占对象空间，缓存友好。
 - **On/Off-Slab 灵活性**：根据对象大小自动决定管理元数据是放在页内还是页外。
 
@@ -122,6 +122,25 @@ char *buf = kmalloc(100, GFP_KERNEL);
 // 归还（无需指定 cache，系统会自动通过页描述符找回）
 kfree(buf);
 ```
+
+### 11. 对齐与着色 (Alignment & Coloring)
+
+这是 Slab 分配器为了压榨硬件性能而设计的两个精妙机制：
+
+#### A. 硬件对齐 (Alignment)
+- **原理**：通过 `SLAB_HWCACHE_ALIGN` 标志，Slab 会确保每个对象的起始地址都对齐到 CPU 的 **L1 Cache Line**（32字节）。
+- **目的**：防止一个对象跨越两个 Cache Line。如果对象跨行，CPU 需要两次内存访问才能加载完数据，性能减半。
+
+#### B. Slab 着色 (Slab Coloring)
+
+> 核心实现见`kmem_cache_grow`
+
+- **痛点 (Cache Alias)**：现代 CPU 的 L1 Cache 是组相联的。如果所有 Slab 都从页框的 `0` 偏移处开始存放对象，那么不同 Slab 中相同索引的对象（例如 Slab A 的第一个对象和 Slab B 的第一个对象）极大概率会映射到 **同一个 Cache Line**。当内核交替访问这些对象时，会频繁触发 Cache 冲突失效，导致性能剧降。
+- **方案**：
+    1. 每个页框在存放对象前，先空出一小段“空白区”。
+    2. 第一个 Slab 空出 0 字节，第二个空出 64 字节，第三个空出 128 字节……这个偏移量就是 **“颜色” (Color)**。
+    3. 这样，不同仓库的对象在物理内存中的相对偏移就错开了，从而在 L1 Cache 中也能“均匀分布”。
+- **实现**：在 `kmem_cache_grow` 中，通过 `cachep->colour_next` 轮询分配颜色，确保系统中的 Slab 颜色分布均匀。
 
 ## See Also
 

@@ -24,6 +24,8 @@ Slab Descriptor（Slab 描述符）是管理单个 Slab 内部状态的数据结
 
 Slab Descriptor (`slab_t`) 是单个 Slab 的“管家”。它负责追踪该 Slab 内哪些对象是空闲的，哪些是已分配的，并维护 Slab 在 Cache 链表中的位置。
 
+slab 将若干连续物理页(2^gfporder)上的同类对象聚合为一个管理单元，使得对象分配在保持局部性的同时，能够服从 zone 与 page reclaim 的管理要求。
+
 ## Why This Concept
 
 一个 Cache 由多个 Slab 组成，内核需要精细管理每个 Slab：
@@ -109,6 +111,15 @@ Slab 描述符有两种存放策略，由 Cache 的 `flags` 决定：
 - 释放过程本质上是一个**入栈**操作：
     1. 将归还对象的 `bufctl` 指向当前的 `free`。
     2. 将 `free` 更新为归还对象的索引。
+
+### 6. 重要函数
+
+使用`cache->gfporder`, 调用伙伴系统接口.
+```c
+void *kmem_getpages(kmem_cache_t *cache, int flags);
+void kmem_freepages(kmem_cache_t *cache, void *addr);
+```
+
 
 ## See Also
 
