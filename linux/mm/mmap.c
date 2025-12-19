@@ -389,6 +389,26 @@ static int vma_merge(struct mm_struct * mm, struct vm_area_struct * prev,
 	return 0;
 }
 
+/** @brief 创建虚拟内存映射的核心入口函数
+ *
+ * do_mmap_pgoff 是内核管理进程虚拟地址空间的核心 API。它负责在进程的虚拟地址空间中
+ * 寻找或创建一个新的虚拟内存区域（VMA）：
+ * 1. 参数校验：检查地址对齐、长度限制以及文件系统的支持情况。
+ * 2. 寻找空闲区间：在进程的虚拟地址空间中寻找一个足够大的未分配区间。
+ * 3. VMA 分配与初始化：从 Slab 缓存 (vm_area_cachep) 中分配一个 vm_area_struct 结构体。
+ * 4. 建立映射：如果是文件映射，调用文件系统的 mmap 方法；如果是匿名映射，设置相应的标志。
+ * 5. 插入管理结构：将新的 VMA 插入到进程的线性链表和红黑树中，并处理可能的区域合并。
+ *
+ * @param file   指向被映射文件的指针（匿名映射为 NULL）。
+ * @param addr   请求映射的起始虚拟地址（建议值）。
+ * @param len    映射区域的长度。
+ * @param prot   页保护标志（读、写、执行权限）。
+ * @param flags  映射标志（共享、私有、固定地址等）。
+ * @param pgoff  文件内的偏移量（以页为单位）。
+ * @return unsigned long 返回映射成功的起始虚拟地址，失败则返回错误码。
+ * @note do_mmap() 是此函数的内联封装版本。@see do_mmap
+ * @ref memory-area-management
+ */
 unsigned long do_mmap_pgoff(struct file * file, unsigned long addr, unsigned long len,
 	unsigned long prot, unsigned long flags, unsigned long pgoff)
 {

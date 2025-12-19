@@ -151,14 +151,36 @@ static unsigned long offslab_limit;
  * for a slab, or allocated from an general cache.
  * Slabs are chained into three list: fully used, partial, fully free slabs.
  */
+/**
+ * @brief Slab 描述符 (slab_t)
+ * 
+ * 该结构体负责管理一个具体的 Slab（由 2^gfporder 个连续页框组成）。
+ * 它记录了该 Slab 的内存布局、在用对象统计以及空闲对象的管理链表。
+ * 
+ * **内存布局**：
+ * - 对象存储区(s_mem)：紧跟在 slab_t 结构体之后，是实际存放对象的内存区域。
+ * - bufctl 数组：紧跟在对象存储区(inuse)之后，是一个“数组模拟链表”，用于管理空闲对象。
+ * 
+ * 通过挂载到 kmem_cache_t 的 slabs_full、slabs_partial 和 slabs_free 链表，
+ * Slab 分配器能够高效地跟踪和管理不同分配状态的 Slab，从而优化内存利用率和分配性能。
+ */
 typedef struct slab_s {
-	struct list_head	list;
-	unsigned long		colouroff;
-	void			*s_mem;		/* including colour offset */
-	unsigned int		inuse;		/* num of objs active in slab */
-	kmem_bufctl_t		free;
+	struct list_head	list;       //!< 链表节点：对应挂载到 cachep 的 slabs_full/partial/free 链表之一。
+	unsigned long		colouroff;  //!< 该 Slab 的着色偏移量：即 s_mem 相对于页面起始地址的偏移。
+	void			*s_mem;		    //!< 指向该 Slab 中第一个对象的起始地址（已包含着色偏移）。
+	unsigned int		inuse;		//!< 统计：当前该 Slab 中已分配（在用）的对象数量。
+	//! 就是一个指针数组(静态链表), 代替在对象内部插入指针作为链表使用 @see `slab_bufctl()`
+	kmem_bufctl_t		free;       //!< 空闲链表头：存放第一个空闲对象的索引（bufctl 数组的下标）。
 } slab_t;
 
+/**
+ * @brief 获取 Slab 的 bufctl 数组起始地址 (空闲对象链表头)
+ * 
+ * 设计逻辑：
+ * bufctl 数组紧跟在 slab_t 结构体之后。它是一个“数组模拟链表”的结构：
+ * 数组的第 i 个元素存放的是第 i 个对象之后的下一个空闲对象的索引。
+ * 这种设计避免了在对象内部插入指针，从而支持任何大小的对象且不破坏对齐。
+ */
 #define slab_bufctl(slabp) \
 	((kmem_bufctl_t *)(((slab_t*)slabp)+1))
 
@@ -186,61 +208,76 @@ typedef struct cpucache_s {
 
 #define CACHE_NAMELEN	20	/* max name length for a slab cache */
 
+/**
+ * @brief Cache 描述符 (kmem_cache_t)
+ * 
+ * 该结构体是 Slab 分配器的核心管理单元。每种对象类型（如 inode, task_struct）
+ * 都有一个独立的 kmem_cache_t 实例。
+ * 
+ * **Slab 管理机制**：
+ * Cache 通过三个双向循环链表来组织和管理其下的所有 Slab：
+ * 1. slabs_partial：部分分配的 Slab。这是分配时的首选，因为它既能满足需求又能提高内存利用率。
+ * 2. slabs_free：完全空闲的 Slab。当 partial 链表为空时，从此链表取出一个 Slab 使用。
+ * 3. slabs_full：已完全填满的 Slab。分配器会跳过这些 Slab，直到其中有对象被释放。
+ * 
+ * **状态流转**：
+ * - 分配对象时：优先从 partial 找；若无，则从 free 找并移入 partial；若仍无，则调用 kmem_cache_grow 申请新页。
+ * - 释放对象时：若 Slab 从 full 变为有空闲，移入 partial；若 Slab 变为全空，移入 free（或根据策略直接释放回伙伴系统）。
+ */
 struct kmem_cache_s {
-/* 1) each alloc & free */
-	/* full, partial first, then free */
-	struct list_head	slabs_full;
-	struct list_head	slabs_partial;
-	struct list_head	slabs_free;
-	unsigned int		objsize;
-	unsigned int	 	flags;	/* constant flags */
-	unsigned int		num;	/* # of objs per slab */
-	spinlock_t		spinlock;
+/* 1) 每次分配与释放相关的字段 (Hot Path) */
+    /* Cache维护的三个Slab链表，用于不同分配状态的对象管理 */
+	struct list_head	slabs_full;    //!< 已满 Slab 链表：所有对象都已分配。
+	struct list_head	slabs_partial; //!< 部分空闲 Slab 链表：包含已分配和未分配对象，分配首选。
+	struct list_head	slabs_free;    //!< 完全空闲 Slab 链表：不包含已分配对象，可被回收。
+	unsigned int		objsize;       //!< 单个对象的大小（包含对齐填充）。
+	unsigned int	 	flags;	       //!< 静态标志位（如 SLAB_HWCACHE_ALIGN）。
+	unsigned int		num;	       //!< 每个 Slab 中包含的对象数量。
+	spinlock_t		spinlock;      //!< 保护该 Cache 描述符的自旋锁。
 #ifdef CONFIG_SMP
-	unsigned int		batchcount;
+	unsigned int		batchcount;    //!< SMP (Symmetric Multi-Processing) 环境下，本地缓存与全局链表批量交换对象的数量。
 #endif
 
-/* 2) slab additions /removals */
-	/* order of pgs per slab (2^n) */
-	unsigned int		gfporder;
+/* 2) Slab 添加/移除()相关的字段 (Intermediate Path) */
+	unsigned int		gfporder;      //!< 每个 Slab 占用的页框阶数（2^gfporder 个页框）。
 
-	/* force GFP flags, e.g. GFP_DMA */
-	unsigned int		gfpflags;
+	unsigned int		gfpflags;      //!< 分配页框时强制使用的 GFP 标志（如 GFP_DMA）。
 
-	size_t			colour;		/* cache colouring range */
-	unsigned int		colour_off;	/* colour offset */
-	unsigned int		colour_next;	/* cache colouring */
-	kmem_cache_t		*slabp_cache;
-	unsigned int		growing;
-	unsigned int		dflags;		/* dynamic flags */
+	size_t			colour;		//!< 缓存着色范围：用于微调 Slab 起始偏移。
+	unsigned int		colour_off;	//!< 缓存着色偏移量：每个颜色等级对应的字节偏移。
+	unsigned int		colour_next;	//!< 下一个新创建的 Slab 将使用的颜色等级。
+	kmem_cache_t		*slabp_cache;  //!< 如果是 Off-Slab 模式，指向存放 Slab 描述符的 Cache。
+	unsigned int		growing;       //!< 标志位：表示该 Cache 是否正在增长（正在申请新 Slab）。
+	unsigned int		dflags;		//!< 动态标志位。
 
-	/* constructor func */
+	/** 构造函数：在创建新 Slab 时初始化每个对象 */
 	void (*ctor)(void *, kmem_cache_t *, unsigned long);
 
-	/* de-constructor func */
+	/** 析构函数：在销毁 Slab 时调用 */
 	void (*dtor)(void *, kmem_cache_t *, unsigned long);
 
-	unsigned long		failures;
+	unsigned long		failures;      //!< 统计：分配失败的次数。
 
-/* 3) cache creation/removal */
-	char			name[CACHE_NAMELEN];
-	struct list_head	next;
+/* 3) Cache 创建/销毁相关的字段 (Cold Path) */
+	char			name[CACHE_NAMELEN]; //!< Cache 的名称（显示在 /proc/slabinfo 中）。
+	struct list_head	next;                //!< 将所有 Cache 描述符链接在一起的全局链表。
 #ifdef CONFIG_SMP
-/* 4) per-cpu data */
-	cpucache_t		*cpudata[NR_CPUS];
+/* 4) Per-CPU Cache 数据 注意这里Linux 2.6 版本引入了不同的逻辑 */
+	cpucache_t		*cpudata[NR_CPUS];   //!< 每个 CPU 私有的对象缓存，用于减少锁竞争。
 #endif
 #if STATS
-	unsigned long		num_active;
-	unsigned long		num_allocations;
-	unsigned long		high_mark;
-	unsigned long		grown;
-	unsigned long		reaped;
-	unsigned long 		errors;
+	/* 统计信息字段 */
+	unsigned long		num_active;      //!< 当前活跃（已分配）的对象总数。
+	unsigned long		num_allocations; //!< 累计分配次数。
+	unsigned long		high_mark;       //!< 活跃对象数量的历史最高点。
+	unsigned long		grown;           //!< 累计增长（新增 Slab）次数。
+	unsigned long		reaped;          //!< 累计回收（释放 Slab）次数。
+	unsigned long 		errors;          //!< 累计错误次数。
 #ifdef CONFIG_SMP
-	atomic_t		allochit;
-	atomic_t		allocmiss;
-	atomic_t		freehit;
-	atomic_t		freemiss;
+	atomic_t		allochit;        //!< 本地缓存命中次数。
+	atomic_t		allocmiss;       //!< 本地缓存缺失次数。
+	atomic_t		freehit;         //!< 释放到本地缓存的次数。
+	atomic_t		freemiss;        //!< 释放时本地缓存已满的次数。
 #endif
 #endif
 };
@@ -617,6 +654,31 @@ static void kmem_slab_destroy (kmem_cache_t *cachep, slab_t *slabp)
  * cacheline.  This can be beneficial if you're counting cycles as closely
  * as davem.
  */
+/** @brief 创建一个新的装对象 Cache (核心入口api)
+ *
+ * 该函数是 Slab 分配器的管理入口，通过一系列复杂的布局计算来初始化 kmem_cache_t 描述符：
+ * 1. 严格校验：首先检查调用上下文（不能在中断中）以及参数的合法性（如对象大小不能超过限制，
+ *    析构函数必须配合构造函数使用等）。
+ * 2. 描述符获取：从专门管理描述符的全局缓存 `cache_cache` 中分配一个新的 `kmem_cache_t` 实例。
+ * 3. 尺寸对齐：根据硬件特性调整对象大小。如果设置了 SLAB_HWCACHE_ALIGN，则按 L1 Cache Line 对齐；
+ *    否则至少按机器字长（BYTES_PER_WORD）对齐，以防止跨行访问性能下降。
+ * 4. 策略选择（On/Off-Slab）：根据对象大小决定管理结构（slab_t）的存放位置。如果对象较大
+ *    （超过页面的 1/8），则倾向于将管理结构放在 Slab 页面之外（Off-Slab），以提高页面利用率。
+ * 5. 布局估算（核心逻辑）：通过一个循环不断尝试增加 `gfporder`（从 0 开始），调用 `kmem_cache_estimate` 
+ *    计算在当前页框阶数下能容纳的对象数量和剩余空间。目标是在减少内部碎片（剩余空间 < 1/8 页面）和
+ *    控制页框阶数（避免过大的连续物理内存请求）之间取得平衡。
+ * 6. 缓存着色（Cache Colouring）：利用估算出的剩余空间（left_over），计算着色偏移量 `colour_off` 
+ *    和最大颜色数 `colour`。这使得不同 Slab 的对象在硬件缓存中能均匀分布，减少冲突。
+ * 7. 链表注册：初始化 Cache 的各个 Slab 链表（full, partial, free），并将其挂载到全局 `cache_chain` 中。
+ *
+ * @param name   Cache 的名称。
+ * @param size   对象的大小。
+ * @param offset 在页面内的偏移量（通常为 0）。
+ * @param flags  SLAB 标志位。
+ * @param ctor   构造函数。
+ * @param dtor   析构函数。
+ * @return kmem_cache_t* 成功返回 Cache 指针，失败返回 NULL。
+ */
 kmem_cache_t *
 kmem_cache_create (const char *name, size_t size, size_t offset,
 	unsigned long flags, void (*ctor)(void*, kmem_cache_t *, unsigned long),
@@ -631,6 +693,9 @@ kmem_cache_create (const char *name, size_t size, size_t offset,
 	 */
 	if ((!name) ||
 		((strlen(name) >= CACHE_NAMELEN - 1)) ||
+		// 1. 严禁在中断上下文中调用，因为该函数可能会睡眠等待内存分配
+		// 2. 对象大小至少为机器字长（即能装下一个指针）（访问对齐到字长的内存效率最高），且不能超过最大限制（即 32 页 -- 128KB 已经很大了）
+		// 3. 你用析构函数，必须提供构造函数
 		in_interrupt() ||
 		(size < BYTES_PER_WORD) ||
 		(size > (1<<MAX_OBJ_ORDER)*PAGE_SIZE) ||
@@ -639,6 +704,10 @@ kmem_cache_create (const char *name, size_t size, size_t offset,
 			BUG();
 
 #if DEBUG
+//! 处理 SLAB_DEBUG_INITIAL, SLAB_RED_ZONE, SLAB_POISON 标志
+// 分别代表：
+// Red Zone：在对象前后插入保护区以检测越界；
+// Poison：用特定模式填充内存以检测未初始化访问；（释放后使用的错误）
 	if ((flags & SLAB_DEBUG_INITIAL) && !ctor) {
 		/* No constructor, but inital state check requested */
 		printk("%sNo con, but init state check requested - %s\n", func_nm, name);
@@ -666,10 +735,12 @@ kmem_cache_create (const char *name, size_t size, size_t offset,
 	 * Always checks flags, a caller might be expecting debug
 	 * support which isn't available.
 	 */
+	// debug 标志
 	if (flags & ~CREATE_MASK)
 		BUG();
 
 	/* Get cache's description obj. */
+	//！ 调用 kmem_cache_alloc 从 cache_cache 全局缓存中分配一个 kmem_cache_t 描述符 (所有的kmem_cache_t 实际上也是由slab分配器分配的)
 	cachep = (kmem_cache_t *) kmem_cache_alloc(&cache_cache, SLAB_KERNEL);
 	if (!cachep)
 		goto opps;
@@ -1035,6 +1106,13 @@ static inline slab_t * kmem_cache_slabmgmt (kmem_cache_t *cachep,
 	return slabp;
 }
 
+/**
+ * @brief 初始化 Slab 中的所有对象
+ * 
+ * 1. 遍历所有对象，计算其地址。
+ * 2. 如果有构造函数，则调用它（体现了“对象缓存”的优势）。
+ * 3. 初始化 bufctl 账本，将所有对象串成一个初始的空闲链表。
+ */
 static inline void kmem_cache_init_objs (kmem_cache_t * cachep,
 			slab_t * slabp, unsigned long ctor_flags)
 {
@@ -1315,6 +1393,24 @@ void* kmem_cache_alloc_batch(kmem_cache_t* cachep, cpucache_t* cc, int flags)
 }
 #endif
 
+/**
+ * @brief 从 Cache 中分配对象的底层实现 (核心逻辑)
+ * 
+ * 该函数实现了 Slab 分配器的“三级跳”分配策略，旨在最大化分配效率并减少锁竞争：
+ * 1. 快速路径 (Per-CPU Cache)：在 SMP 环境下，首先尝试从当前 CPU 的私有缓存 `cpucache_t` 中获取对象。
+ *    这一步只需要关闭本地中断，无需获取全局自旋锁，是性能最高路径。
+ * 2. 批量填充 (Batch Alloc)：如果本地缓存为空，调用 `kmem_cache_alloc_batch` 尝试从全局 Slab 链表中
+ *    一次性搬运 `batchcount` 个对象到本地缓存，以平摊获取全局锁的开销。
+ * 3. 慢速路径 (Slab Lists)：在非 SMP 或本地缓存缺失时，调用 `kmem_cache_alloc_one`。它会按顺序检查：
+ *    - `slabs_partial`：寻找有空闲对象的 Slab。
+ *    - `slabs_free`：如果没有半满 Slab，则从全空 Slab 链表中取出一个，并将其迁移至 `slabs_partial`。
+ * 4. 仓库增长 (Grow)：如果所有 Slab 链表均为空，则跳转至 `alloc_new_slab`，调用 `kmem_cache_grow` 
+ *    向伙伴系统申请新的物理页框来创建新 Slab。
+ * 
+ * @param cachep 指向目标 Cache 描述符。
+ * @param flags  分配标志位（如 SLAB_KERNEL, SLAB_ATOMIC 等）。
+ * @return void* 指向分配到的对象起始地址，失败返回 NULL。
+ */
 static inline void * __kmem_cache_alloc (kmem_cache_t *cachep, int flags)
 {
 	unsigned long save_flags;
@@ -1391,6 +1487,13 @@ alloc_new_slab_nolock:
 # define CHECK_PAGE(pg)	do { } while (0)
 #endif
 
+/**
+ * @brief 释放一个对象到指定的 Slab 中
+ * 
+ * 1. 通过 virt_to_page 找到对象所属的 Slab 描述符。
+ * 2. 将对象压入 bufctl 栈顶（LIFO）。
+ * 3. 根据 Slab 的在用情况，调整其在 partial/free/full 链表中的位置。
+ */
 static inline void kmem_cache_free_one(kmem_cache_t *cachep, void *objp)
 {
 	slab_t* slabp;
@@ -1506,6 +1609,17 @@ static inline void __kmem_cache_free (kmem_cache_t *cachep, void* objp)
  * Allocate an object from this cache.  The flags are only relevant
  * if the cache has no available objects.
  */
+/** @brief 从指定的 Cache 中分配一个对象
+ *
+ * 这是 Slab 分配器的核心分配接口。它首先尝试从本地 CPU 缓存（SMP 环境下）
+ * 或当前 Cache 的空闲 Slab 中获取对象。如果所有 Slab 都已满，则会调用
+ * kmem_cache_grow() 向伙伴系统申请新的页框来创建新 Slab。
+ *
+ * @param cachep 指向要从中分配对象的 Cache 描述符。
+ * @param flags  分配标志（如 GFP_KERNEL, GFP_ATOMIC），透传给伙伴系统。
+ * @return void* 返回指向分配对象的指针，失败则返回 NULL。
+ * @note 该函数是 kmalloc() 的底层支撑。
+ */
 void * kmem_cache_alloc (kmem_cache_t *cachep, int flags)
 {
 	return __kmem_cache_alloc(cachep, flags);
@@ -1552,6 +1666,16 @@ void * kmalloc (size_t size, int flags)
  *
  * Free an object which was previously allocated from this
  * cache.
+ */
+/** @brief 将对象释放回指定的 Cache
+ *
+ * 该函数将之前通过 kmem_cache_alloc() 分配的对象归还给 Slab 分配器。
+ * 它会根据配置将对象放入本地 CPU 缓存或直接归还给所属的 Slab。
+ * 如果释放后 Slab 变得完全空闲，该 Slab 可能会在后续的回收操作中被释放回伙伴系统。
+ *
+ * @param cachep 指向对象所属的 Cache 描述符。
+ * @param objp   指向要释放的对象指针。
+ * @return void
  */
 void kmem_cache_free (kmem_cache_t *cachep, void *objp)
 {

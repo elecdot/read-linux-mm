@@ -60,10 +60,31 @@ Cache Descriptor (`kmem_cache_t`) 是 Slab 分配器的“大脑”。每一种�
 
 ### 2. 关键函数
 
-- **`kmem_cache_create()`**：创建一个新的 Cache。需要指定对象名称、大小、对齐方式以及构造/析构函数。
-- **`kmem_cache_destroy()`**：销毁一个 Cache。只有当所有 Slab 都为空时才能成功。
-- **`kmem_cache_alloc()`**：从 Cache 中分配一个对象。
-- **`kmem_cache_free()`**：将对象释放回 Cache。
+```c
+/** @brief 初始化 Slab 分配器（在系统启动早期调用） prototype */
+extern void kmem_cache_init(void);
+
+/** @brief 初始化通用大小的 Cache（用于 kmalloc） */
+extern void kmem_cache_sizes_init(void);
+
+extern kmem_cache_t *kmem_find_general_cachep(size_t, int gfpflags);
+/** @brief 创建一个新的对象 Cache */
+extern kmem_cache_t *kmem_cache_create(const char *, size_t, size_t, unsigned long,
+				       void (*)(void *, kmem_cache_t *, unsigned long),
+				       void (*)(void *, kmem_cache_t *, unsigned long));
+
+/** @brief 销毁一个对象 Cache */
+extern int kmem_cache_destroy(kmem_cache_t *);
+
+/** @brief 收缩 Cache，释放所有完全空闲的 Slab */
+extern int kmem_cache_shrink(kmem_cache_t *);
+
+/** @brief 从 Cache 中分配一个对象 */
+extern void *kmem_cache_alloc(kmem_cache_t *, int);
+
+/** @brief 将对象释放回 Cache */
+extern void kmem_cache_free(kmem_cache_t *, void *);
+```
 
 ## See Also
 

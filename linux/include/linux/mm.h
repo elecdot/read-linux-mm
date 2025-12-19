@@ -40,37 +40,44 @@ extern struct list_head inactive_list;
  * space that has a special rule for the page-fault handlers (ie a shared
  * library, the executable area etc).
  */
+/**
+ * @brief 虚拟内存区域 (VMA) 描述符。
+ * 
+ * 该结构体定义了进程虚拟地址空间中的一个连续区域。每个任务/虚拟内存区域都有一个这样的结构。
+ * VMA 是进程虚拟内存空间中具有特殊缺页处理规则的任何部分（例如共享库、可执行代码段等）。
+ * 
+ * @note 内核使用 Slab 分配器中的 vm_area_cachep 来分配此结构。
+ * @ref memory-area-management
+ */
 struct vm_area_struct {
-	struct mm_struct * vm_mm;	/* The address space we belong to. */
-	unsigned long vm_start;		/* Our start address within vm_mm. */
-	unsigned long vm_end;		/* The first byte after our end address
-					   within vm_mm. */
+	struct mm_struct * vm_mm;	//!< 指向该区域所属的地址空间 (mm_struct)。
+	unsigned long vm_start;		//!< 该区域在 vm_mm 中的起始虚拟地址。
+	unsigned long vm_end;		//!< 该区域在 vm_mm 中的结束虚拟地址（不包含该地址）。
 
-	/* linked list of VM areas per task, sorted by address */
-	struct vm_area_struct *vm_next;
+	/* 按照地址排序的每个任务的 VMA 链表 */
+	struct vm_area_struct *vm_next; //!< 指向进程 VMA 链表中的下一个区域。
 
-	pgprot_t vm_page_prot;		/* Access permissions of this VMA. */
-	unsigned long vm_flags;		/* Flags, listed below. */
+	pgprot_t vm_page_prot;		//!< 该 VMA 的访问权限（页保护位）。
+	unsigned long vm_flags;		//!< 标志位，定义了区域的属性（如 VM_READ, VM_WRITE 等）。
 
-	rb_node_t vm_rb;
+	rb_node_t vm_rb;            //!< 用于在红黑树中组织 VMA，以实现快速查找。
 
 	/*
-	 * For areas with an address space and backing store,
-	 * one of the address_space->i_mmap{,shared} lists,
-	 * for shm areas, the list of attaches, otherwise unused.
+	 * 对于具有地址空间和后备存储的区域，
+	 * 属于 address_space->i_mmap{,shared} 链表之一；
+	 * 对于共享内存区域，则是附加列表；否则不使用。
 	 */
 	struct vm_area_struct *vm_next_share;
 	struct vm_area_struct **vm_pprev_share;
 
-	/* Function pointers to deal with this struct. */
-	struct vm_operations_struct * vm_ops;
+	/* 处理此结构的操作函数指针 */
+	struct vm_operations_struct * vm_ops; //!< 指向该区域特定操作的函数表（如缺页处理）。
 
-	/* Information about our backing store: */
-	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE
-					   units, *not* PAGE_CACHE_SIZE */
-	struct file * vm_file;		/* File we map to (can be NULL). */
-	unsigned long vm_raend;		/* XXX: put full readahead info here. */
-	void * vm_private_data;		/* was vm_pte (shared mem) */
+	/* 后备存储相关信息： */
+	unsigned long vm_pgoff;		//!< 在 vm_file 中的偏移量，以 PAGE_SIZE 为单位。
+	struct file * vm_file;		//!< 该区域映射到的文件（如果是匿名映射则为 NULL）。
+	unsigned long vm_raend;		//!< 预读结束地址。
+	void * vm_private_data;		//!< 私有数据（曾用于共享内存的 vm_pte）。
 };
 
 /*
@@ -581,10 +588,25 @@ extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 	unsigned long len, unsigned long prot,
 	unsigned long flag, unsigned long pgoff);
 
+/** @brief do_mmap_pgoff 的内联封装版本
+ *
+ * 这是内核中创建内存映射的最常用入口。它对偏移量进行基本的溢出检查和对齐检查，
+ * 然后将字节偏移量转换为页面偏移量，并调用核心实现函数 do_mmap_pgoff。
+ *
+ * @param file   指向被映射文件的指针（匿名映射为 NULL）。
+ * @param addr   请求映射的起始虚拟地址。
+ * @param len    映射区域的长度。
+ * @param prot   页保护标志。
+ * @param flag   映射标志。
+ * @param offset 文件内的字节偏移量。
+ * @return unsigned long 返回映射成功的起始虚拟地址，失败则返回错误码。
+ * @see do_mmap_pgoff
+ */
 static inline unsigned long do_mmap(struct file *file, unsigned long addr,
 	unsigned long len, unsigned long prot,
 	unsigned long flag, unsigned long offset)
 {
+	// Basic overflow and alignment checks
 	unsigned long ret = -EINVAL;
 	if ((offset + PAGE_ALIGN(len)) < offset)
 		goto out;

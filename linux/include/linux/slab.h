@@ -45,17 +45,28 @@ typedef struct kmem_cache_s kmem_cache_t;
 #define SLAB_CTOR_ATOMIC	0x002UL		/* tell constructor it can't sleep */
 #define	SLAB_CTOR_VERIFY	0x004UL		/* tell constructor it's a verify call */
 
-/* prototypes */
+/** @brief 初始化 Slab 分配器（在系统启动早期调用） prototype */
 extern void kmem_cache_init(void);
+
+/** @brief 初始化通用大小的 Cache（用于 kmalloc） */
 extern void kmem_cache_sizes_init(void);
 
 extern kmem_cache_t *kmem_find_general_cachep(size_t, int gfpflags);
+/** @brief 创建一个新的对象 Cache */
 extern kmem_cache_t *kmem_cache_create(const char *, size_t, size_t, unsigned long,
 				       void (*)(void *, kmem_cache_t *, unsigned long),
 				       void (*)(void *, kmem_cache_t *, unsigned long));
+
+/** @brief 销毁一个对象 Cache */
 extern int kmem_cache_destroy(kmem_cache_t *);
+
+/** @brief 收缩 Cache，释放所有完全空闲的 Slab */
 extern int kmem_cache_shrink(kmem_cache_t *);
+
+/** @brief 从 Cache 中分配一个对象 */
 extern void *kmem_cache_alloc(kmem_cache_t *, int);
+
+/** @brief 将对象释放回 Cache */
 extern void kmem_cache_free(kmem_cache_t *, void *);
 
 extern void *kmalloc(size_t, int);
