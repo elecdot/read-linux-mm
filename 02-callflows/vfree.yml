@@ -1,0 +1,28 @@
+name: vfree
+description: Free a noncontiguous memory area.
+entrypoint: vfree
+steps:
+  - function: vfree
+    file: linux/mm/vmalloc.c
+    notes: |
+      1. Acquires vmlist_lock.
+      2. Finds the vm_struct in vmlist matching the address.
+      3. Removes it from the list.
+      4. Calls vmfree_area_pages.
+      5. Frees the vm_struct itself.
+  - function: vmfree_area_pages
+    file: linux/mm/vmalloc.c
+    notes: |
+      1. Flushes CPU cache (flush_cache_all).
+      2. Iterates through PGD/PMD/PTE to unmap pages.
+      3. Flushes TLB (flush_tlb_all).
+    calls:
+      - function: free_area_pmd
+        file: linux/mm/vmalloc.c
+        notes: Iterates through PMD entries.
+      - function: free_area_pte
+        file: linux/mm/vmalloc.c
+        notes: |
+          Iterates through PTE entries:
+          1. Clears the PTE (ptep_get_and_clear).
+          2. Calls __free_page() for the physical page if it was present and not reserved.

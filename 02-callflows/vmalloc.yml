@@ -1,0 +1,40 @@
+name: vmalloc
+description: Allocate noncontiguous memory area in kernel address space.
+entrypoint: vmalloc
+steps:
+  - function: vmalloc
+    file: linux/include/linux/vmalloc.h
+    notes: Inline function that calls __vmalloc with GFP_KERNEL | __GFP_HIGHMEM.
+  - function: __vmalloc
+    file: linux/mm/vmalloc.c
+    notes: Aligns size to PAGE_SIZE and checks if size is valid.
+  - function: get_vm_area
+    file: linux/mm/vmalloc.c
+    notes: |
+      1. Allocates a struct vm_struct.
+      2. Adds PAGE_SIZE to requested size (for guard page).
+      3. Searches vmlist for a suitable gap between VMALLOC_START and VMALLOC_END.
+      4. Inserts the new area into vmlist.
+  - function: vmalloc_area_pages
+    file: linux/mm/vmalloc.c
+    notes: Starts the page table mapping process for the allocated area.
+    calls:
+      - function: pgd_offset_k
+        file: linux/include/asm-i386/pgtable.h
+        notes: Gets the PGD entry in the kernel page table (init_mm).
+      - function: pmd_alloc
+        file: linux/include/asm-i386/pgalloc.h
+        notes: Allocates/finds the PMD entry.
+      - function: alloc_area_pmd
+        file: linux/mm/vmalloc.c
+        notes: Iterates over PMD entries.
+        calls:
+          - function: pte_alloc
+            file: linux/include/asm-i386/pgalloc.h
+            notes: Allocates/finds the PTE table.
+          - function: alloc_area_pte
+            file: linux/mm/vmalloc.c
+            notes: |
+              Iterates over PTE entries:
+              1. Calls alloc_page(gfp_mask) to get a physical page.
+              2. Calls set_pte() to map the page into the kernel page table.
