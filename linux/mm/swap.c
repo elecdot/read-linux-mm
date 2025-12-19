@@ -36,6 +36,11 @@ pager_daemon_t pager_daemon = {
 /*
  * Move an inactive page to the active list.
  */
+/**
+ * @brief 将一个不活跃页面转移到活跃链表 (无锁版本)
+ * 
+ * 如果页面在 LRU 管理中且当前不活跃，则将其从 inactive_list 移至 active_list。
+ */
 static inline void activate_page_nolock(struct page * page)
 {
 	if (PageLRU(page) && !PageActive(page)) {
@@ -44,6 +49,12 @@ static inline void activate_page_nolock(struct page * page)
 	}
 }
 
+/**
+ * @brief 激活页面 (外部接口)
+ * 
+ * 当一个页面被访问（如通过 mark_page_accessed）且内核认为它足够“热”时调用。
+ * 持有 pagemap_lru_lock 全局锁以保证链表操作的原子性。
+ */
 void activate_page(struct page * page)
 {
 	spin_lock(&pagemap_lru_lock);
@@ -54,6 +65,11 @@ void activate_page(struct page * page)
 /**
  * lru_cache_add: add a page to the page lists
  * @page: the page to add
+ * 
+ * @brief 将新页面首次加入 LRU 管理系统
+ * 
+ * 1. 检查并设置 PG_lru 标志，确保页面只被添加一次。
+ * 2. 默认将新页面放入 inactive_list（给它一个观察期）。
  */
 void lru_cache_add(struct page * page)
 {

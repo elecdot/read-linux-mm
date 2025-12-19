@@ -164,6 +164,9 @@ extern void FASTCALL(mark_page_accessed(struct page *));
  * List add/del helper macros. These must be called
  * with the pagemap_lru_lock held!
  */
+/**
+ * @brief 检查页面是否符合 LRU 链表操作的前提条件 (仅用于 DEBUG)
+ */
 #define DEBUG_LRU_PAGE(page)			\
 do {						\
 	if (!PageLRU(page))			\
@@ -172,6 +175,13 @@ do {						\
 		BUG();				\
 } while (0)
 
+/**
+ * @brief 将页面添加到活跃链表 (active_list)
+ * 
+ * 1. 设置 PG_active 标志位。
+ * 2. 将页面挂载到全局 active_list。
+ * 3. 增加全局活跃页面计数 nr_active_pages。
+ */
 #define add_page_to_active_list(page)		\
 do {						\
 	DEBUG_LRU_PAGE(page);			\
@@ -180,6 +190,13 @@ do {						\
 	nr_active_pages++;			\
 } while (0)
 
+/**
+ * @brief 将页面添加到不活跃链表 (inactive_list)
+ * 
+ * 1. 将页面挂载到全局 inactive_list。
+ * 2. 增加全局不活跃页面计数 nr_inactive_pages。
+ * @note 注意：进入此链表的页面 PG_active 必须为 0。
+ */
 #define add_page_to_inactive_list(page)		\
 do {						\
 	DEBUG_LRU_PAGE(page);			\
@@ -187,6 +204,9 @@ do {						\
 	nr_inactive_pages++;			\
 } while (0)
 
+/**
+ * @brief 从活跃链表中移除页面
+ */
 #define del_page_from_active_list(page)		\
 do {						\
 	list_del(&(page)->lru);			\
@@ -194,6 +214,9 @@ do {						\
 	nr_active_pages--;			\
 } while (0)
 
+/**
+ * @brief 从不活跃链表中移除页面
+ */
 #define del_page_from_inactive_list(page)	\
 do {						\
 	list_del(&(page)->lru);			\
